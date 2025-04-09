@@ -32,8 +32,8 @@ type Client struct {
 }
 
 func NewClient(config *ClientConfig) (*Client, error) {
-	if config.SenderSigner == nil || config.PaymasterURL == nil || config.BundlerURL == nil || config.EntryPointVersion != EntryPointVersion07 || config.ChainID == nil {
-		return nil, errors.New("signer, paymasterURL, bundlerURL, entryPoint, and chainID are required")
+	if config.Sender == nil || config.SenderSigner == nil || config.PaymasterURL == nil || config.BundlerURL == nil || config.EntryPointVersion != EntryPointVersion07 || config.ChainID == nil {
+		return nil, errors.New("sender, senderSigner, paymasterURL, bundlerURL, entryPointVersion, and chainID are required")
 	}
 
 	entrypoint, err := NewEntrypoint07(config.RpcURL, config.ChainID)
