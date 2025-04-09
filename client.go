@@ -52,6 +52,7 @@ func NewClient(config *ClientConfig) (*Client, error) {
 	}
 
 	return &Client{
+		Sender:          config.Sender,
 		SenderSigner:    config.SenderSigner,
 		PaymasterClient: paymasterClient,
 		BundlerClient:   bundlerClient,
