@@ -2,6 +2,7 @@ package zerodev
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
 	"net/url"
 
@@ -29,6 +30,11 @@ type Client struct {
 	PaymasterClient *PaymasterClient
 	BundlerClient   *BundlerClient
 	ChainID         *big.Int
+	RpcClients      struct {
+		Network   *rpc.Client
+		Paymaster *rpc.Client
+		Bundler   *rpc.Client
+	}
 }
 
 func NewClient(config *ClientConfig) (*Client, error) {
@@ -36,17 +42,35 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		return nil, errors.New("sender, senderSigner, paymasterURL, bundlerURL, entryPointVersion, and chainID are required")
 	}
 
-	entrypoint, err := NewEntrypoint07(config.RpcURL, config.ChainID)
+	networkRpc, err := rpc.Dial(config.RpcURL.String())
 	if err != nil {
 		return nil, err
 	}
 
-	paymasterClient, err := NewPaymasterClient(config.PaymasterURL, entrypoint, config.ChainID)
+	paymasterRpc, err := rpc.Dial(config.PaymasterURL.String())
+	if err != nil {
+		networkRpc.Close()
+		return nil, err
+	}
+
+	bundleRpc, err := rpc.Dial(config.BundlerURL.String())
+	if err != nil {
+		paymasterRpc.Close()
+		networkRpc.Close()
+		return nil, err
+	}
+
+	entrypoint, err := NewEntrypoint07(networkRpc, config.ChainID)
 	if err != nil {
 		return nil, err
 	}
 
-	bundlerClient, err := NewBundlerClient(config.BundlerURL, entrypoint, config.ChainID)
+	paymasterClient, err := NewPaymasterClient(paymasterRpc, entrypoint, config.ChainID)
+	if err != nil {
+		return nil, err
+	}
+
+	bundlerClient, err := NewBundlerClient(bundleRpc, entrypoint, config.ChainID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,13 +82,22 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		BundlerClient:   bundlerClient,
 		EntryPoint:      entrypoint,
 		ChainID:         config.ChainID,
+		RpcClients: struct {
+			Network   *rpc.Client
+			Paymaster *rpc.Client
+			Bundler   *rpc.Client
+		}{
+			Network:   networkRpc,
+			Paymaster: paymasterRpc,
+			Bundler:   bundleRpc,
+		},
 	}, nil
 }
 
 func (c *Client) Close() {
-	c.PaymasterClient.Close()
-	c.BundlerClient.Close()
-	c.EntryPoint.Close()
+	c.RpcClients.Network.Close()
+	c.RpcClients.Paymaster.Close()
+	c.RpcClients.Bundler.Close()
 }
 
 // GetUserOperationAndHashToSign creates a UserOperation based on the sender and callData, computes its hash and returns both.
@@ -74,7 +107,7 @@ func (c *Client) GetUserOperationAndHashToSign(sender *common.Address, callData 
 	var err error
 	var op UserOperation
 
-	nonce, err := c.EntryPoint.GetNonce(sender)
+	nonce, err := c.EntryPoint.GetNonce(*sender)
 	if err != nil {
 		return nil, nil, err
 	}

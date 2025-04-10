@@ -3,13 +3,11 @@ package zerodev
 import (
 	"context"
 	"encoding/json"
-	"math/big"
-	"net/url"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/friendsofgo/errors"
+	"math/big"
 )
 
 type GasPriceSpecification struct {
@@ -57,32 +55,21 @@ type SendUserOperationResponse struct {
 }
 
 type BundlerClient struct {
-	URL        *url.URL
 	Client     *rpc.Client
 	EntryPoint Entrypoint
 	ChainID    *big.Int
 }
 
-func NewBundlerClient(url *url.URL, entrypoint Entrypoint, chainID *big.Int) (*BundlerClient, error) {
-	if url == nil || entrypoint == nil || chainID == nil {
-		return nil, errors.New("url, entrypoint, and chainID are required")
-	}
-
-	client, err := rpc.Dial(url.String())
-	if err != nil {
-		return nil, err
+func NewBundlerClient(rpcClient *rpc.Client, entrypoint Entrypoint, chainID *big.Int) (*BundlerClient, error) {
+	if entrypoint == nil || chainID == nil {
+		return nil, errors.New("entrypoint, and chainID are required")
 	}
 
 	return &BundlerClient{
-		URL:        url,
-		Client:     client,
+		Client:     rpcClient,
 		EntryPoint: entrypoint,
 		ChainID:    chainID,
 	}, nil
-}
-
-func (b *BundlerClient) Close() {
-	b.Client.Close()
 }
 
 func (b *BundlerClient) GetEntryPoint() Entrypoint {
@@ -91,14 +78,6 @@ func (b *BundlerClient) GetEntryPoint() Entrypoint {
 
 func (b *BundlerClient) GetChainID() *big.Int {
 	return b.ChainID
-}
-
-func (b *BundlerClient) GetURL() *url.URL {
-	return b.URL
-}
-
-func (b *BundlerClient) GetClient() *rpc.Client {
-	return b.Client
 }
 
 func (b *BundlerClient) GetUserOperationGasPrice() (*GetUserOperationGasPriceResponse, error) {
