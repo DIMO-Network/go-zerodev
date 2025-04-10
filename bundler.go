@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/friendsofgo/errors"
 	"math/big"
 )
@@ -55,12 +54,12 @@ type SendUserOperationResponse struct {
 }
 
 type BundlerClient struct {
-	Client     *rpc.Client
+	Client     RPCClient
 	EntryPoint Entrypoint
 	ChainID    *big.Int
 }
 
-func NewBundlerClient(rpcClient *rpc.Client, entrypoint Entrypoint, chainID *big.Int) (*BundlerClient, error) {
+func NewBundlerClient(rpcClient RPCClient, entrypoint Entrypoint, chainID *big.Int) (*BundlerClient, error) {
 	if entrypoint == nil || chainID == nil {
 		return nil, errors.New("entrypoint, and chainID are required")
 	}

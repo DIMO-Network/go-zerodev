@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/friendsofgo/errors"
 )
 
@@ -82,12 +81,12 @@ func (r *SponsorUserOperationResponse) UnmarshalJSON(b []byte) error {
 }
 
 type PaymasterClient struct {
-	Client     *rpc.Client
+	Client     RPCClient
 	EntryPoint Entrypoint
 	ChainID    *big.Int
 }
 
-func NewPaymasterClient(rpcClient *rpc.Client, entrypoint Entrypoint, chainID *big.Int) (*PaymasterClient, error) {
+func NewPaymasterClient(rpcClient RPCClient, entrypoint Entrypoint, chainID *big.Int) (*PaymasterClient, error) {
 	if entrypoint == nil || chainID == nil {
 		return nil, errors.New("entrypoint, and chainID are required")
 	}
