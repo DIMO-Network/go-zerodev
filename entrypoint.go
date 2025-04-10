@@ -16,12 +16,17 @@ import (
 
 const (
 	EntryPointVersion07 = "0.7"
+	entrypointAbi07     = `[{"inputs": [{ "name": "sender", "type": "address" }, { "name": "key", "type": "uint192" }], "name": "getNonce", "outputs": [{ "name": "nonce", "type": "uint256" }], "stateMutability": "view", "type": "function"}]`
+	entryPointAddress07 = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
+	keySeparatorStart   = ">"
+	keySeparatorEnd     = "<"
 )
 
 type Entrypoint interface {
 	GetAddress() *common.Address
 	GetNonce(account *common.Address) (*big.Int, error)
 	GetUserOperationHash(op *UserOperation) (*common.Hash, error)
+	PackUserOperation(op *UserOperation) ([]byte, error)
 	Close()
 }
 
@@ -32,26 +37,21 @@ type EntrypointClient07 struct {
 	ChainID *big.Int
 }
 
-const entrypointAbi07 = `[{"inputs": [{ "name": "sender", "type": "address" }, { "name": "key", "type": "uint192" }], "name": "getNonce", "outputs": [{ "name": "nonce", "type": "uint256" }], "stateMutability": "view", "type": "function"}]`
-const entryPointAddress07 = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
-
+// NewEntrypoint07 creates a new EntrypointClient07 instance.
 func NewEntrypoint07(rpcUrl *url.URL, chainID *big.Int) (*EntrypointClient07, error) {
-	rpcClient, err := rpc.Dial(rpcUrl.String())
+	client, err := rpc.Dial(rpcUrl.String())
 	if err != nil {
 		return nil, err
 	}
-
-	parsedABI, err := abi.JSON(strings.NewReader(entrypointAbi07))
+	parsedAbi, err := abi.JSON(strings.NewReader(entrypointAbi07))
 	if err != nil {
 		return nil, err
 	}
-
 	entrypointAddress := common.HexToAddress(entryPointAddress07)
-
 	return &EntrypointClient07{
-		Client:  rpcClient,
+		Client:  client,
 		Address: &entrypointAddress,
-		Abi:     &parsedABI,
+		Abi:     &parsedAbi,
 		ChainID: chainID,
 	}, nil
 }
@@ -60,8 +60,9 @@ func (e *EntrypointClient07) GetAddress() *common.Address {
 	return e.Address
 }
 
+// GetNonce retrieves the nonce of a specific account.
 func (e *EntrypointClient07) GetNonce(account *common.Address) (*big.Int, error) {
-	key := new(big.Int).SetBytes([]byte(">" + account.Hex()[5:10] + "<"))
+	key := computeKey(account)
 	callData, err := e.Abi.Pack("getNonce", account, key)
 	if err != nil {
 		return nil, err
@@ -76,8 +77,7 @@ func (e *EntrypointClient07) GetNonce(account *common.Address) (*big.Int, error)
 	}
 
 	var hex hexutil.Bytes
-	err = e.Client.CallContext(context.Background(), &hex, "eth_call", msg)
-	if err != nil {
+	if err := e.Client.CallContext(context.Background(), &hex, "eth_call", msg); err != nil {
 		return nil, err
 	}
 
@@ -85,20 +85,20 @@ func (e *EntrypointClient07) GetNonce(account *common.Address) (*big.Int, error)
 	if err != nil {
 		return nil, err
 	}
-
 	return big.NewInt(0).SetBytes(decoded), nil
 }
 
+// GetUserOperationHash calculates the hash of a UserOperation.
 func (e *EntrypointClient07) GetUserOperationHash(op *UserOperation) (*common.Hash, error) {
 	packedOp, err := e.PackUserOperation(op)
+	if err != nil {
+		return nil, err
+	}
+
 	args := abi.Arguments{
 		{Type: bytes32},
 		{Type: address},
 		{Type: uint256},
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	packed, _ := args.Pack(
@@ -106,15 +106,12 @@ func (e *EntrypointClient07) GetUserOperationHash(op *UserOperation) (*common.Ha
 		e.Address,
 		e.ChainID,
 	)
-
 	hash := crypto.Keccak256Hash(packed)
-
 	return &hash, nil
 }
 
+// PackUserOperation creates a packed representation of a UserOperation compliant with Entrypoint 0.7
 func (*EntrypointClient07) PackUserOperation(op *UserOperation) ([]byte, error) {
-	// Based on:
-	// https://github.com/wevm/viem/blob/main/src/account-abstraction/utils/userOperation/getUserOperationHash.ts#L72
 	args := abi.Arguments{
 		{Name: "sender", Type: address},
 		{Name: "nonce", Type: uint256},
@@ -129,25 +126,22 @@ func (*EntrypointClient07) PackUserOperation(op *UserOperation) ([]byte, error) 
 	hashedInitCode := crypto.Keccak256Hash(common.FromHex("0x"))
 	hashedCallData := crypto.Keccak256Hash(op.CallData)
 
-	var accountGasLimits bytes.Buffer
-	accountGasLimits.Write(common.LeftPadBytes(op.VerificationGasLimit.Bytes(), 16))
-	accountGasLimits.Write(common.LeftPadBytes(op.CallGasLimit.Bytes(), 16))
+	accountGasLimits := createPackedBuffer(
+		op.VerificationGasLimit.Bytes(),
+		op.CallGasLimit.Bytes(),
+	)
 
-	var accountGasLimitsArray [32]byte
-	copy(accountGasLimitsArray[:], accountGasLimits.Bytes())
+	gasFees := createPackedBuffer(
+		op.MaxPriorityFeePerGas.Bytes(),
+		op.MaxFeePerGas.Bytes(),
+	)
 
-	var gasFees bytes.Buffer
-	gasFees.Write(common.LeftPadBytes(op.MaxPriorityFeePerGas.Bytes(), 16))
-	gasFees.Write(common.LeftPadBytes(op.MaxFeePerGas.Bytes(), 16))
-
-	var gasFeesArray [32]byte
-	copy(gasFeesArray[:], gasFees.Bytes())
-
-	var paymasterAndData bytes.Buffer
-	paymasterAndData.Write(op.Paymaster)
-	paymasterAndData.Write(common.LeftPadBytes(op.PaymasterVerificationGasLimit.Bytes(), 16))
-	paymasterAndData.Write(common.LeftPadBytes(op.PaymasterPostOpGasLimit.Bytes(), 16))
-	paymasterAndData.Write(op.PaymasterData)
+	paymasterAndData := createPaymasterDataBuffer(
+		op.Paymaster,
+		op.PaymasterVerificationGasLimit.Bytes(),
+		op.PaymasterPostOpGasLimit.Bytes(),
+		op.PaymasterData,
+	)
 
 	hashedPaymasterAndData := crypto.Keccak256Hash(paymasterAndData.Bytes())
 
@@ -156,19 +150,48 @@ func (*EntrypointClient07) PackUserOperation(op *UserOperation) ([]byte, error) 
 		op.Nonce,
 		hashedInitCode,
 		hashedCallData,
-		accountGasLimitsArray,
+		toArray32(accountGasLimits),
 		op.PreVerificationGas,
-		gasFeesArray,
+		toArray32(gasFees),
 		hashedPaymasterAndData,
 	)
-
 	if err != nil {
 		return nil, err
 	}
-
 	return packed, nil
 }
 
 func (e *EntrypointClient07) Close() {
 	e.Client.Close()
+}
+
+// computeKey generates a key for an account using separators.
+func computeKey(account *common.Address) *big.Int {
+	partialHex := account.Hex()[5:10]
+	return new(big.Int).SetBytes([]byte(keySeparatorStart + partialHex + keySeparatorEnd))
+}
+
+// createPackedBuffer combines two byte slices into a single buffer with padding.
+func createPackedBuffer(first, second []byte) bytes.Buffer {
+	var buffer bytes.Buffer
+	buffer.Write(common.LeftPadBytes(first, 16))
+	buffer.Write(common.LeftPadBytes(second, 16))
+	return buffer
+}
+
+// createPaymasterDataBuffer builds the byte buffer for Paymaster and related data.
+func createPaymasterDataBuffer(paymaster, verificationGas, postOpGas []byte, paymasterData []byte) bytes.Buffer {
+	var buffer bytes.Buffer
+	buffer.Write(paymaster)
+	buffer.Write(common.LeftPadBytes(verificationGas, 16))
+	buffer.Write(common.LeftPadBytes(postOpGas, 16))
+	buffer.Write(paymasterData)
+	return buffer
+}
+
+// toArray32 converts a buffer into a fixed 32-byte array.
+func toArray32(buffer bytes.Buffer) [32]byte {
+	var array [32]byte
+	copy(array[:], buffer.Bytes())
+	return array
 }

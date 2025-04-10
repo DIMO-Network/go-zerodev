@@ -48,44 +48,34 @@ type UserOperationHex struct {
 }
 
 func (op *UserOperation) MarshalJSON() ([]byte, error) {
-	var m = UserOperationHex{}
-	m.Sender = op.Sender.String()
-	m.Nonce = hexutil.EncodeBig(op.Nonce)
-	m.CallData = hexutil.Encode(op.CallData)
-	m.MaxFeePerGas = hexutil.EncodeBig(op.MaxFeePerGas)
-	m.MaxPriorityFeePerGas = hexutil.EncodeBig(op.MaxPriorityFeePerGas)
-
-	if op.CallGasLimit != nil {
-		m.CallGasLimit = hexutil.EncodeBig(op.CallGasLimit)
+	hexOp := UserOperationHex{
+		Sender:                        op.Sender.String(),
+		Nonce:                         encodeBigInt(op.Nonce),
+		CallData:                      encodeBytes(op.CallData),
+		MaxFeePerGas:                  encodeBigInt(op.MaxFeePerGas),
+		MaxPriorityFeePerGas:          encodeBigInt(op.MaxPriorityFeePerGas),
+		CallGasLimit:                  encodeBigInt(op.CallGasLimit),
+		VerificationGasLimit:          encodeBigInt(op.VerificationGasLimit),
+		PreVerificationGas:            encodeBigInt(op.PreVerificationGas),
+		Paymaster:                     encodeBytes(op.Paymaster),
+		PaymasterData:                 encodeBytes(op.PaymasterData),
+		Signature:                     encodeBytes(op.Signature),
+		PaymasterPostOpGasLimit:       encodeBigInt(op.PaymasterPostOpGasLimit),
+		PaymasterVerificationGasLimit: encodeBigInt(op.PaymasterVerificationGasLimit),
 	}
+	return json.Marshal(&hexOp)
+}
 
-	if op.VerificationGasLimit != nil {
-		m.VerificationGasLimit = hexutil.EncodeBig(op.VerificationGasLimit)
+func encodeBigInt(value *big.Int) string {
+	if value != nil {
+		return hexutil.EncodeBig(value)
 	}
+	return ""
+}
 
-	if op.PreVerificationGas != nil {
-		m.PreVerificationGas = hexutil.EncodeBig(op.PreVerificationGas)
+func encodeBytes(value []byte) string {
+	if len(value) > 0 {
+		return hexutil.Encode(value)
 	}
-
-	if len(op.Paymaster) > 0 {
-		m.Paymaster = hexutil.Encode(op.Paymaster)
-	}
-
-	if len(op.PaymasterData) > 0 {
-		m.PaymasterData = hexutil.Encode(op.PaymasterData)
-	}
-
-	if op.PaymasterPostOpGasLimit != nil {
-		m.PaymasterPostOpGasLimit = hexutil.EncodeBig(op.PaymasterPostOpGasLimit)
-	}
-
-	if op.PaymasterVerificationGasLimit != nil {
-		m.PaymasterVerificationGasLimit = hexutil.EncodeBig(op.PaymasterVerificationGasLimit)
-	}
-
-	if len(op.Signature) > 0 {
-		m.Signature = hexutil.Encode(op.Signature)
-	}
-
-	return json.Marshal(&m)
+	return ""
 }
