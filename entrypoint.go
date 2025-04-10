@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 const (
@@ -32,14 +31,14 @@ type Entrypoint interface {
 }
 
 type EntrypointClient07 struct {
-	Client  *rpc.Client
+	Client  RPCClient
 	Address common.Address
 	Abi     *abi.ABI
 	ChainID *big.Int
 }
 
 // NewEntrypoint07 creates a new EntrypointClient07 instance.
-func NewEntrypoint07(rpcClient *rpc.Client, chainID *big.Int) (*EntrypointClient07, error) {
+func NewEntrypoint07(rpcClient RPCClient, chainID *big.Int) (*EntrypointClient07, error) {
 	parsedAbi, err := abi.JSON(strings.NewReader(entrypointAbi07))
 	if err != nil {
 		return nil, err
@@ -156,10 +155,6 @@ func (*EntrypointClient07) PackUserOperation(op *UserOperation) ([]byte, error) 
 		return nil, err
 	}
 	return packed, nil
-}
-
-func (e *EntrypointClient07) Close() {
-	e.Client.Close()
 }
 
 // computeKey generates a key for an account using separators.
