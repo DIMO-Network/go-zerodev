@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"math/big"
-	"net/url"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -13,12 +12,11 @@ import (
 )
 
 type SponsorUserOperationRequest struct {
-	ChainID           *big.Int        `json:"chainId"`
-	Operation         *UserOperation  `json:"userOp"`
-	EntryPointAddress *common.Address `json:"entryPointAddress"`
-	GasToken          *common.Address `json:"gasToken,omitempty"`
-	ShouldOverrideFee bool            `json:"shouldOverrideFee"`
-	ShouldConsume     bool            `json:"shouldConsume"`
+	ChainID           *big.Int       `json:"chainId"`
+	Operation         *UserOperation `json:"userOp"`
+	EntryPointAddress common.Address `json:"entryPointAddress"`
+	ShouldOverrideFee bool           `json:"shouldOverrideFee"`
+	ShouldConsume     bool           `json:"shouldConsume"`
 }
 
 type SponsorUserOperationResponse struct {
@@ -84,32 +82,21 @@ func (r *SponsorUserOperationResponse) UnmarshalJSON(b []byte) error {
 }
 
 type PaymasterClient struct {
-	URL        *url.URL
 	Client     *rpc.Client
 	EntryPoint Entrypoint
 	ChainID    *big.Int
 }
 
-func NewPaymasterClient(url *url.URL, entrypoint Entrypoint, chainID *big.Int) (*PaymasterClient, error) {
-	if url == nil || entrypoint == nil || chainID == nil {
-		return nil, errors.New("url, entrypoint, and chainID are required")
-	}
-
-	client, err := rpc.Dial(url.String())
-	if err != nil {
-		return nil, err
+func NewPaymasterClient(rpcClient *rpc.Client, entrypoint Entrypoint, chainID *big.Int) (*PaymasterClient, error) {
+	if entrypoint == nil || chainID == nil {
+		return nil, errors.New("entrypoint, and chainID are required")
 	}
 
 	return &PaymasterClient{
-		URL:        url,
-		Client:     client,
+		Client:     rpcClient,
 		EntryPoint: entrypoint,
 		ChainID:    chainID,
 	}, nil
-}
-
-func (p *PaymasterClient) Close() {
-	p.Client.Close()
 }
 
 func (p *PaymasterClient) GetEntryPoint() Entrypoint {
@@ -118,14 +105,6 @@ func (p *PaymasterClient) GetEntryPoint() Entrypoint {
 
 func (p *PaymasterClient) GetChainID() *big.Int {
 	return p.ChainID
-}
-
-func (p *PaymasterClient) GetURL() *url.URL {
-	return p.URL
-}
-
-func (p *PaymasterClient) GetClient() *rpc.Client {
-	return p.Client
 }
 
 func (p *PaymasterClient) SponsorUserOperation(op *UserOperation) (*SponsorUserOperationResponse, error) {
@@ -137,7 +116,6 @@ func (p *PaymasterClient) SponsorUserOperation(op *UserOperation) (*SponsorUserO
 		Operation:         op,
 		ShouldOverrideFee: false,
 		ShouldConsume:     true,
-		GasToken:          nil,
 	}
 
 	var response SponsorUserOperationResponse

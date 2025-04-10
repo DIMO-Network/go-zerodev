@@ -5,7 +5,6 @@ import (
 	"context"
 	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
-	"net/url"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -18,50 +17,48 @@ const (
 	EntryPointVersion07 = "0.7"
 	entrypointAbi07     = `[{"inputs": [{ "name": "sender", "type": "address" }, { "name": "key", "type": "uint192" }], "name": "getNonce", "outputs": [{ "name": "nonce", "type": "uint256" }], "stateMutability": "view", "type": "function"}]`
 	entryPointAddress07 = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
-	keySeparatorStart   = ">"
-	keySeparatorEnd     = "<"
+)
+
+const (
+	keySeparatorStart = ">"
+	keySeparatorEnd   = "<"
 )
 
 type Entrypoint interface {
-	GetAddress() *common.Address
-	GetNonce(account *common.Address) (*big.Int, error)
+	GetAddress() common.Address
+	GetNonce(account common.Address) (*big.Int, error)
 	GetUserOperationHash(op *UserOperation) (*common.Hash, error)
 	PackUserOperation(op *UserOperation) ([]byte, error)
-	Close()
 }
 
 type EntrypointClient07 struct {
 	Client  *rpc.Client
-	Address *common.Address
+	Address common.Address
 	Abi     *abi.ABI
 	ChainID *big.Int
 }
 
 // NewEntrypoint07 creates a new EntrypointClient07 instance.
-func NewEntrypoint07(rpcUrl *url.URL, chainID *big.Int) (*EntrypointClient07, error) {
-	client, err := rpc.Dial(rpcUrl.String())
-	if err != nil {
-		return nil, err
-	}
+func NewEntrypoint07(rpcClient *rpc.Client, chainID *big.Int) (*EntrypointClient07, error) {
 	parsedAbi, err := abi.JSON(strings.NewReader(entrypointAbi07))
 	if err != nil {
 		return nil, err
 	}
-	entrypointAddress := common.HexToAddress(entryPointAddress07)
+
 	return &EntrypointClient07{
-		Client:  client,
-		Address: &entrypointAddress,
+		Client:  rpcClient,
+		Address: common.HexToAddress(entryPointAddress07),
 		Abi:     &parsedAbi,
 		ChainID: chainID,
 	}, nil
 }
 
-func (e *EntrypointClient07) GetAddress() *common.Address {
+func (e *EntrypointClient07) GetAddress() common.Address {
 	return e.Address
 }
 
 // GetNonce retrieves the nonce of a specific account.
-func (e *EntrypointClient07) GetNonce(account *common.Address) (*big.Int, error) {
+func (e *EntrypointClient07) GetNonce(account common.Address) (*big.Int, error) {
 	key := computeKey(account)
 	callData, err := e.Abi.Pack("getNonce", account, key)
 	if err != nil {
@@ -69,8 +66,8 @@ func (e *EntrypointClient07) GetNonce(account *common.Address) (*big.Int, error)
 	}
 
 	msg := struct {
-		To   *common.Address `json:"to"`
-		Data hexutil.Bytes   `json:"data"`
+		To   common.Address `json:"to"`
+		Data hexutil.Bytes  `json:"data"`
 	}{
 		To:   e.Address,
 		Data: callData,
@@ -166,7 +163,7 @@ func (e *EntrypointClient07) Close() {
 }
 
 // computeKey generates a key for an account using separators.
-func computeKey(account *common.Address) *big.Int {
+func computeKey(account common.Address) *big.Int {
 	partialHex := account.Hex()[5:10]
 	return new(big.Int).SetBytes([]byte(keySeparatorStart + partialHex + keySeparatorEnd))
 }
