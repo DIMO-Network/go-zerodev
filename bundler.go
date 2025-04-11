@@ -3,6 +3,7 @@ package zerodev
 import (
 	"context"
 	"encoding/json"
+	"github.com/DIMO-Network/go-zerodev/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/friendsofgo/errors"
@@ -54,12 +55,12 @@ type SendUserOperationResponse struct {
 }
 
 type BundlerClient struct {
-	Client     RPCClient
+	Client     types.RPCClient
 	EntryPoint Entrypoint
 	ChainID    *big.Int
 }
 
-func NewBundlerClient(rpcClient RPCClient, entrypoint Entrypoint, chainID *big.Int) (*BundlerClient, error) {
+func NewBundlerClient(rpcClient types.RPCClient, entrypoint Entrypoint, chainID *big.Int) (*BundlerClient, error) {
 	if entrypoint == nil || chainID == nil {
 		return nil, errors.New("entrypoint, and chainID are required")
 	}

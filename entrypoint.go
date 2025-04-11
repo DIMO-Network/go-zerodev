@@ -3,13 +3,13 @@ package zerodev
 import (
 	"bytes"
 	"context"
-	"github.com/ethereum/go-ethereum/crypto"
-	"math/big"
-	"strings"
-
+	"github.com/DIMO-Network/go-zerodev/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"math/big"
+	"strings"
 )
 
 const (
@@ -31,14 +31,14 @@ type Entrypoint interface {
 }
 
 type EntrypointClient07 struct {
-	Client  RPCClient
+	Client  types.RPCClient
 	Address common.Address
 	Abi     *abi.ABI
 	ChainID *big.Int
 }
 
 // NewEntrypoint07 creates a new EntrypointClient07 instance.
-func NewEntrypoint07(rpcClient RPCClient, chainID *big.Int) (*EntrypointClient07, error) {
+func NewEntrypoint07(rpcClient types.RPCClient, chainID *big.Int) (*EntrypointClient07, error) {
 	parsedAbi, err := abi.JSON(strings.NewReader(entrypointAbi07))
 	if err != nil {
 		return nil, err

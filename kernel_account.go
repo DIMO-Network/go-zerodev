@@ -2,11 +2,10 @@ package zerodev
 
 import (
 	"bytes"
-	"strings"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"strings"
 )
 
 const kernelAccountExecuteABI = `[{

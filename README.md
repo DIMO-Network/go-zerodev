@@ -27,14 +27,10 @@ import (
 )
 
 func main() {
-	// Create a signer for the AA wallet (only private key is supported right now)
-	signer := zerodev.NewPrivateKeySigner(<YOUR_AA_WALLET_ECDSA_PK>)
-	walletAddress := common.HexToAddress("YOUR_AA_WALLET_ADDRESS")
-
 	// Create config for zerodev client with default sender and its signer
 	clientConfig := zerodev.ClientConfig{
-		Sender:             &walletAddress,
-		SenderSigner:       signer,
+		AccountAddress:     common.HexToAddress("YOUR_AA_WALLET_ADDRESS"),
+		AccountPK:          <YOUR_AA_WALLET_PK>,
 		EntryPointVersion:  zerodev.EntryPointVersion07,
 		RpcURL:             <RPC_URL>,
 		PaymasterURL:       <PAYMASTER_URL>,
@@ -79,14 +75,10 @@ import (
 )
 
 func main() {
-	// Create a signer for the AA wallet (only private key is supported right now)
-	signer := zerodev.NewPrivateKeySigner(<YOUR_AA_WALLET_ECDSA_PK>)
-	walletAddress := common.HexToAddress("YOUR_AA_WALLET_ADDRESS")
-
 	// Create config for zerodev client with default sender and its signer
 	clientConfig := zerodev.ClientConfig{
-		Sender:             &walletAddress,
-		SenderSigner:       signer,
+		AccountAddress:     common.HexToAddress("YOUR_AA_WALLET_ADDRESS"),
+		AccountPK:          <YOUR_AA_WALLET_PK>,
 		EntryPointVersion:  zerodev.EntryPointVersion07,
 		RpcURL:             <RPC_URL>,
 		PaymasterURL:       <PAYMASTER_URL>,
@@ -115,8 +107,12 @@ func main() {
 	}
 
 	// Sign the hash using any signing method valid for this custom sender, e.g. PK
-	customSigner := zerodev.NewPrivateKeySigner(<CUSTOM_AA_WALLET_ECDSA_PK>)
-	customSignerSignature, err := customSigner.SignHash(*opHash)
+	customSigner, err := client.GetSmartAccountSigner(<CUSTOM_AA_WALLET>, <CUSTOM_AA_WALLET_ECDSA_PK>)
+	if err != nil {
+		panic(err)
+	}
+	
+	customSignerSignature, err := customSigner.SignUserOpertionHash(*opHash)
 	if err != nil {
 		panic(err)
 	}
