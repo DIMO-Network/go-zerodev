@@ -70,6 +70,9 @@ func (s *SmartAccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error
 	finalHash := crypto.Keccak256Hash([]byte(rawData))
 
 	signature, err := s.signHashBase(finalHash)
+	if err != nil {
+		return nil, err
+	}
 
 	return append(s.Validator.GetIdentifier(), signature...), nil
 }
