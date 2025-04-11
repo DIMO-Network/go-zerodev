@@ -12,6 +12,7 @@ type Signer interface {
 	SignMessage(message []byte) ([]byte, error)
 	SignTypedData(typedData *signer.TypedData) ([]byte, error)
 	SignHash(hash common.Hash) ([]byte, error)
+	SignUserOperationHash(hash common.Hash) ([]byte, error)
 }
 
 type PrivateKeySigner struct {
@@ -46,4 +47,8 @@ func (s *PrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
 	}
 	signature[64] += 27
 	return signature, nil
+}
+
+func (s *PrivateKeySigner) SignUserOperationHash(hash common.Hash) ([]byte, error) {
+	return s.SignHash(hash)
 }

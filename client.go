@@ -166,7 +166,7 @@ func (c *Client) SendUserOperation(callData *[]byte) (*UserOperationResult, erro
 		return nil, err
 	}
 
-	signature, err := c.SenderSigner.SignHash(*opHash)
+	signature, err := c.SenderSigner.SignUserOperationHash(*opHash)
 	if err != nil {
 		return nil, err
 	}

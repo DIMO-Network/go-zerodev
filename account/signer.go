@@ -45,7 +45,7 @@ func (s *AccountPrivateKeySigner) SignTypedData(typedData *signer.TypedData) ([]
 }
 
 func (s *AccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
-	accountTypedData, err := s.GetAccountTypedData()
+	accountTypedData, err := s.getAccountTypedData()
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (s *AccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
 		return nil, err
 	}
 
-	wrappedHash, err := s.KernelHashWrap(hash)
+	wrappedHash, err := s.kernelHashWrap(hash)
 	if err != nil {
 		return nil, err
 	}
@@ -63,17 +63,26 @@ func (s *AccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
 	rawData := fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(wrappedHash))
 	finalHash := crypto.Keccak256Hash([]byte(rawData))
 
-	signature, err := crypto.Sign(finalHash.Bytes(), s.PrivateKey)
+	signature, err := s.signHashBase(finalHash)
 
+	return append(s.Validator.GetIdentifier(), signature...), nil
+}
+
+func (s *AccountPrivateKeySigner) SignUserOperationHash(hash common.Hash) ([]byte, error) {
+	return s.signHashBase(hash)
+}
+
+func (s *AccountPrivateKeySigner) signHashBase(hash common.Hash) ([]byte, error) {
+	signature, err := crypto.Sign(hash.Bytes(), s.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 	signature[64] += 27
 
-	return append(s.Validator.GetIdentifier(), signature...), nil
+	return signature, nil
 }
 
-func (s *AccountPrivateKeySigner) KernelHashWrap(hash common.Hash) ([]byte, error) {
+func (s *AccountPrivateKeySigner) kernelHashWrap(hash common.Hash) ([]byte, error) {
 	args := abi.Arguments{
 		{Type: bytes32},
 		{Type: bytes32},
@@ -87,7 +96,7 @@ func (s *AccountPrivateKeySigner) KernelHashWrap(hash common.Hash) ([]byte, erro
 	return crypto.Keccak256(packed), nil
 }
 
-func (s *AccountPrivateKeySigner) GetAccountTypedData() (*signer.TypedData, error) {
+func (s *AccountPrivateKeySigner) getAccountTypedData() (*signer.TypedData, error) {
 	return &signer.TypedData{
 		Types: signer.Types{
 			"EIP712Domain": []signer.Type{
