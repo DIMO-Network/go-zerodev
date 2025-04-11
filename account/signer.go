@@ -41,6 +41,10 @@ func (s *AccountPrivateKeySigner) SignTypedData(typedData *signer.TypedData) ([]
 		return nil, err
 	}
 
+	return s.SignHash(common.BytesToHash(hash))
+}
+
+func (s *AccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
 	accountTypedData, err := s.GetAccountTypedData()
 	if err != nil {
 		return nil, err
@@ -51,7 +55,7 @@ func (s *AccountPrivateKeySigner) SignTypedData(typedData *signer.TypedData) ([]
 		return nil, err
 	}
 
-	wrappedHash, err := s.WrapHash(common.BytesToHash(hash))
+	wrappedHash, err := s.KernelHashWrap(hash)
 	if err != nil {
 		return nil, err
 	}
@@ -59,25 +63,17 @@ func (s *AccountPrivateKeySigner) SignTypedData(typedData *signer.TypedData) ([]
 	rawData := fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(wrappedHash))
 	finalHash := crypto.Keccak256Hash([]byte(rawData))
 
-	signature, err := s.SignHash(finalHash)
-	if err != nil {
-		return nil, err
-	}
-
-	return append(s.Validator.GetIdentifier(), signature...), nil
-}
-
-func (s *AccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
-	signature, err := crypto.Sign(hash.Bytes(), s.PrivateKey)
+	signature, err := crypto.Sign(finalHash.Bytes(), s.PrivateKey)
 
 	if err != nil {
 		return nil, err
 	}
 	signature[64] += 27
-	return signature, nil
+
+	return append(s.Validator.GetIdentifier(), signature...), nil
 }
 
-func (s *AccountPrivateKeySigner) WrapHash(hash common.Hash) ([]byte, error) {
+func (s *AccountPrivateKeySigner) KernelHashWrap(hash common.Hash) ([]byte, error) {
 	args := abi.Arguments{
 		{Type: bytes32},
 		{Type: bytes32},
