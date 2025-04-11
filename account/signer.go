@@ -18,6 +18,7 @@ type AccountPrivateKeySigner struct {
 	Address         common.Address
 	PrivateKey      *ecdsa.PrivateKey
 	AccountMetadata *AccountMetadata
+	Validator       Validator
 }
 
 func NewAccountPrivateKeySigner(address common.Address, privateKey *ecdsa.PrivateKey, accountMetadata *AccountMetadata) *AccountPrivateKeySigner {
@@ -25,6 +26,7 @@ func NewAccountPrivateKeySigner(address common.Address, privateKey *ecdsa.Privat
 		Address:         address,
 		PrivateKey:      privateKey,
 		AccountMetadata: accountMetadata,
+		Validator:       NewEcdsaValidator(),
 	}
 }
 
@@ -57,9 +59,12 @@ func (s *AccountPrivateKeySigner) SignTypedData(typedData *signer.TypedData) ([]
 	rawData := fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(wrappedHash))
 	finalHash := crypto.Keccak256Hash([]byte(rawData))
 
-	// TODO: add validator here 1B + 20B
+	signature, err := s.SignHash(finalHash)
+	if err != nil {
+		return nil, err
+	}
 
-	return s.SignHash(finalHash)
+	return append(s.Validator.GetIdentifier(), signature...), nil
 }
 
 func (s *AccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
