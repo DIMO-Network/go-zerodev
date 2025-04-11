@@ -3,6 +3,7 @@ package account
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/DIMO-Network/go-zerodev/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -14,28 +15,33 @@ var (
 	bytes32, _ = abi.NewType("bytes32", "", nil)
 )
 
-type AccountPrivateKeySigner struct {
+type SmartAccountPrivateKeySigner struct {
+	Client          types.RPCClient
 	Address         common.Address
 	PrivateKey      *ecdsa.PrivateKey
-	AccountMetadata *AccountMetadata
 	Validator       Validator
+	AccountMetadata *AccountMetadata
 }
 
-func NewAccountPrivateKeySigner(address common.Address, privateKey *ecdsa.PrivateKey, accountMetadata *AccountMetadata) *AccountPrivateKeySigner {
-	return &AccountPrivateKeySigner{
-		Address:         address,
-		PrivateKey:      privateKey,
-		AccountMetadata: accountMetadata,
-		Validator:       NewEcdsaValidator(),
-	}
+func NewSmartAccountPrivateKeySigner(client types.RPCClient, address common.Address, privateKey *ecdsa.PrivateKey) (*SmartAccountPrivateKeySigner, error) {
+	return &SmartAccountPrivateKeySigner{
+		Client:     client,
+		Address:    address,
+		PrivateKey: privateKey,
+		Validator:  NewEcdsaValidator(),
+	}, nil
 }
 
-func (s *AccountPrivateKeySigner) SignMessage(message []byte) ([]byte, error) {
+func (s *SmartAccountPrivateKeySigner) GetAddress() common.Address {
+	return s.Address
+}
+
+func (s *SmartAccountPrivateKeySigner) SignMessage(message []byte) ([]byte, error) {
 	hash := crypto.Keccak256Hash(message)
 	return s.SignHash(hash)
 }
 
-func (s *AccountPrivateKeySigner) SignTypedData(typedData *signer.TypedData) ([]byte, error) {
+func (s *SmartAccountPrivateKeySigner) SignTypedData(typedData *signer.TypedData) ([]byte, error) {
 	hash, _, err := signer.TypedDataAndHash(*typedData)
 	if err != nil {
 		return nil, err
@@ -44,7 +50,7 @@ func (s *AccountPrivateKeySigner) SignTypedData(typedData *signer.TypedData) ([]
 	return s.SignHash(common.BytesToHash(hash))
 }
 
-func (s *AccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
+func (s *SmartAccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
 	accountTypedData, err := s.getAccountTypedData()
 	if err != nil {
 		return nil, err
@@ -68,11 +74,11 @@ func (s *AccountPrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
 	return append(s.Validator.GetIdentifier(), signature...), nil
 }
 
-func (s *AccountPrivateKeySigner) SignUserOperationHash(hash common.Hash) ([]byte, error) {
+func (s *SmartAccountPrivateKeySigner) SignUserOperationHash(hash common.Hash) ([]byte, error) {
 	return s.signHashBase(hash)
 }
 
-func (s *AccountPrivateKeySigner) signHashBase(hash common.Hash) ([]byte, error) {
+func (s *SmartAccountPrivateKeySigner) signHashBase(hash common.Hash) ([]byte, error) {
 	signature, err := crypto.Sign(hash.Bytes(), s.PrivateKey)
 	if err != nil {
 		return nil, err
@@ -82,7 +88,7 @@ func (s *AccountPrivateKeySigner) signHashBase(hash common.Hash) ([]byte, error)
 	return signature, nil
 }
 
-func (s *AccountPrivateKeySigner) kernelHashWrap(hash common.Hash) ([]byte, error) {
+func (s *SmartAccountPrivateKeySigner) kernelHashWrap(hash common.Hash) ([]byte, error) {
 	args := abi.Arguments{
 		{Type: bytes32},
 		{Type: bytes32},
@@ -96,7 +102,16 @@ func (s *AccountPrivateKeySigner) kernelHashWrap(hash common.Hash) ([]byte, erro
 	return crypto.Keccak256(packed), nil
 }
 
-func (s *AccountPrivateKeySigner) getAccountTypedData() (*signer.TypedData, error) {
+func (s *SmartAccountPrivateKeySigner) getAccountTypedData() (*signer.TypedData, error) {
+	if s.AccountMetadata == nil {
+		accountMetadata, err := GetAccountMetadata(s.Client, s.Address)
+		if err != nil {
+			return nil, err
+		}
+
+		s.AccountMetadata = accountMetadata
+	}
+
 	return &signer.TypedData{
 		Types: signer.Types{
 			"EIP712Domain": []signer.Type{

@@ -3,11 +3,11 @@ package zerodev
 import (
 	"context"
 	"encoding/json"
-	"math/big"
-
+	"github.com/DIMO-Network/go-zerodev/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/friendsofgo/errors"
+	"math/big"
 )
 
 type SponsorUserOperationRequest struct {
@@ -81,12 +81,12 @@ func (r *SponsorUserOperationResponse) UnmarshalJSON(b []byte) error {
 }
 
 type PaymasterClient struct {
-	Client     RPCClient
+	Client     types.RPCClient
 	EntryPoint Entrypoint
 	ChainID    *big.Int
 }
 
-func NewPaymasterClient(rpcClient RPCClient, entrypoint Entrypoint, chainID *big.Int) (*PaymasterClient, error) {
+func NewPaymasterClient(rpcClient types.RPCClient, entrypoint Entrypoint, chainID *big.Int) (*PaymasterClient, error) {
 	if entrypoint == nil || chainID == nil {
 		return nil, errors.New("entrypoint, and chainID are required")
 	}

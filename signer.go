@@ -2,27 +2,32 @@ package zerodev
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum/go-ethereum/crypto"
 	signer "github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
 
-type Signer interface {
-	SignMessage(message []byte) ([]byte, error)
-	SignTypedData(typedData *signer.TypedData) ([]byte, error)
-	SignHash(hash common.Hash) ([]byte, error)
-	SignUserOperationHash(hash common.Hash) ([]byte, error)
-}
-
 type PrivateKeySigner struct {
 	PrivateKey *ecdsa.PrivateKey
+	Address    common.Address
 }
 
-func NewPrivateKeySigner(privateKey *ecdsa.PrivateKey) Signer {
+func NewPrivateKeySigner(privateKey *ecdsa.PrivateKey) (*PrivateKeySigner, error) {
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, errors.New("failed to assert type: publicKey is not of type *ecdsa.PublicKey")
+	}
+
 	return &PrivateKeySigner{
 		PrivateKey: privateKey,
-	}
+		Address:    crypto.PubkeyToAddress(*publicKeyECDSA),
+	}, nil
+}
+
+func (s *PrivateKeySigner) GetAddress() common.Address {
+	return s.Address
 }
 
 func (s *PrivateKeySigner) SignMessage(message []byte) ([]byte, error) {

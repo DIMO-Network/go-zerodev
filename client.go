@@ -1,17 +1,19 @@
 package zerodev
 
 import (
+	"crypto/ecdsa"
 	"errors"
+	"github.com/DIMO-Network/go-zerodev/account"
+	"github.com/DIMO-Network/go-zerodev/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
 	"net/url"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type ClientConfig struct {
-	Sender            *common.Address
-	SenderSigner      Signer
+	AccountAddress    common.Address
+	AccountPK         *ecdsa.PrivateKey
 	EntryPointVersion string
 	RpcURL            *url.URL
 	PaymasterURL      *url.URL
@@ -24,8 +26,7 @@ type UserOperationResult struct {
 }
 
 type Client struct {
-	Sender          *common.Address
-	SenderSigner    Signer
+	Signer          types.AccountSigner
 	EntryPoint      Entrypoint
 	PaymasterClient *PaymasterClient
 	BundlerClient   *BundlerClient
@@ -38,8 +39,8 @@ type Client struct {
 }
 
 func NewClient(config *ClientConfig) (*Client, error) {
-	if config.Sender == nil || config.SenderSigner == nil || config.PaymasterURL == nil || config.BundlerURL == nil || config.EntryPointVersion != EntryPointVersion07 || config.ChainID == nil {
-		return nil, errors.New("sender, senderSigner, paymasterURL, bundlerURL, entryPointVersion, and chainID are required")
+	if config.AccountPK == nil || config.PaymasterURL == nil || config.BundlerURL == nil || config.EntryPointVersion != EntryPointVersion07 || config.ChainID == nil {
+		return nil, errors.New("accountPK, paymasterURL, bundlerURL, entryPointVersion and chainID are required")
 	}
 
 	networkRpc, err := rpc.Dial(config.RpcURL.String())
@@ -62,22 +63,38 @@ func NewClient(config *ClientConfig) (*Client, error) {
 
 	entrypoint, err := NewEntrypoint07(networkRpc, config.ChainID)
 	if err != nil {
+		networkRpc.Close()
+		paymasterRpc.Close()
+		networkRpc.Close()
 		return nil, err
 	}
 
 	paymasterClient, err := NewPaymasterClient(paymasterRpc, entrypoint, config.ChainID)
 	if err != nil {
+		networkRpc.Close()
+		paymasterRpc.Close()
+		networkRpc.Close()
 		return nil, err
 	}
 
 	bundlerClient, err := NewBundlerClient(bundleRpc, entrypoint, config.ChainID)
 	if err != nil {
+		networkRpc.Close()
+		paymasterRpc.Close()
+		networkRpc.Close()
+		return nil, err
+	}
+
+	signer, err := account.NewSmartAccountPrivateKeySigner(networkRpc, config.AccountAddress, config.AccountPK)
+	if err != nil {
+		networkRpc.Close()
+		paymasterRpc.Close()
+		networkRpc.Close()
 		return nil, err
 	}
 
 	return &Client{
-		Sender:          config.Sender,
-		SenderSigner:    config.SenderSigner,
+		Signer:          signer,
 		PaymasterClient: paymasterClient,
 		BundlerClient:   bundlerClient,
 		EntryPoint:      entrypoint,
@@ -103,16 +120,16 @@ func (c *Client) Close() {
 // GetUserOperationAndHashToSign creates a UserOperation based on the sender and callData, computes its hash and returns both.
 // Allows to create UserOperation with custom sender and then customize the signing process.
 // After adding signature to the returned UserOperation, it can be sent by SendSignedUserOperation
-func (c *Client) GetUserOperationAndHashToSign(sender *common.Address, callData *[]byte) (*UserOperation, *common.Hash, error) {
+func (c *Client) GetUserOperationAndHashToSign(sender common.Address, callData *[]byte) (*UserOperation, *common.Hash, error) {
 	var err error
 	var op UserOperation
 
-	nonce, err := c.EntryPoint.GetNonce(*sender)
+	nonce, err := c.EntryPoint.GetNonce(sender)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	op.Sender = sender
+	op.Sender = &sender
 	op.Nonce = nonce
 	op.CallData = *callData
 
@@ -161,12 +178,12 @@ func (c *Client) SendSignedUserOperation(signedOp *UserOperation) (*UserOperatio
 // SendUserOperation creates and sends a signed user operation using the provided call data.
 // Sender of the user operation is the client's Sender and the signer is SenderSigner
 func (c *Client) SendUserOperation(callData *[]byte) (*UserOperationResult, error) {
-	op, opHash, err := c.GetUserOperationAndHashToSign(c.Sender, callData)
+	op, opHash, err := c.GetUserOperationAndHashToSign(c.Signer.GetAddress(), callData)
 	if err != nil {
 		return nil, err
 	}
 
-	signature, err := c.SenderSigner.SignUserOperationHash(*opHash)
+	signature, err := c.Signer.SignUserOperationHash(*opHash)
 	if err != nil {
 		return nil, err
 	}
@@ -174,4 +191,8 @@ func (c *Client) SendUserOperation(callData *[]byte) (*UserOperationResult, erro
 	op.Signature = signature
 
 	return c.SendSignedUserOperation(op)
+}
+
+func (c *Client) GetSmartAccountSigner(address common.Address, pk *ecdsa.PrivateKey) (types.AccountSigner, error) {
+	return account.NewSmartAccountPrivateKeySigner(c.RpcClients.Network, address, pk)
 }

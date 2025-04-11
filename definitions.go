@@ -1,7 +1,5 @@
 package zerodev
 
-import "context"
-
 // Addresses
 const (
 	AddressZero = "0x0000000000000000000000000000000000000000"
@@ -18,8 +16,3 @@ const (
 	ChainPolygon     = int64(137)
 	ChainPolygonAmoy = int64(80_002)
 )
-
-type RPCClient interface {
-	CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error
-	Close()
-}
