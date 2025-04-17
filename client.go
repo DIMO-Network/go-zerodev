@@ -22,7 +22,8 @@ type ClientConfig struct {
 }
 
 type UserOperationResult struct {
-	TxHash []byte `json:"txHash"`
+	UserOperationHash []byte                `json:"userOperationHash"`
+	Receipt           *UserOperationReceipt `json:"receipt,omitempty"`
 }
 
 type Client struct {
@@ -164,20 +165,27 @@ func (c *Client) GetUserOperationAndHashToSign(sender common.Address, callData *
 
 // SendSignedUserOperation sends a pre-signed user operation to the bundler.
 // Allows to create UserOperation with different sender and this sender's signature
-func (c *Client) SendSignedUserOperation(signedOp *UserOperation) (*UserOperationResult, error) {
+func (c *Client) SendSignedUserOperation(signedOp *UserOperation, waitForReceipt bool) (*UserOperationResult, error) {
 	response, err := c.BundlerClient.SendUserOperation(signedOp)
 	if err != nil {
 		return nil, err
 	}
 
+	var receipt *UserOperationReceipt
+
+	if waitForReceipt {
+		receipt, _ = c.BundlerClient.GetUserOperationReceipt(response)
+	}
+
 	return &UserOperationResult{
-		TxHash: response,
+		UserOperationHash: response,
+		Receipt:           receipt,
 	}, nil
 }
 
 // SendUserOperation creates and sends a signed user operation using the provided call data.
 // Sender of the user operation is the client's Sender and the signer is SenderSigner
-func (c *Client) SendUserOperation(callData *[]byte) (*UserOperationResult, error) {
+func (c *Client) SendUserOperation(callData *[]byte, waitForReceipt bool) (*UserOperationResult, error) {
 	op, opHash, err := c.GetUserOperationAndHashToSign(c.Signer.GetAddress(), callData)
 	if err != nil {
 		return nil, err
@@ -190,7 +198,11 @@ func (c *Client) SendUserOperation(callData *[]byte) (*UserOperationResult, erro
 
 	op.Signature = signature
 
-	return c.SendSignedUserOperation(op)
+	return c.SendSignedUserOperation(op, waitForReceipt)
+}
+
+func (c *Client) GetUserOperationReceipt(result *UserOperationResult) (*UserOperationReceipt, error) {
+	return c.BundlerClient.GetUserOperationReceipt(result.UserOperationHash)
 }
 
 func (c *Client) GetSmartAccountSigner(address common.Address, pk *ecdsa.PrivateKey) (types.AccountSigner, error) {
