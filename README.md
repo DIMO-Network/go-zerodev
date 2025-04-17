@@ -51,10 +51,10 @@ func main() {
 	})
 
 	// Execute the call as user operation
-	result, _ := client.SendUserOperation(encodedCall)
+	result, _ := client.SendUserOperation(encodedCall, false)
     
 	// Get transaction hash
-	fmt.Println(hexutil.Encode(*result.TxHash))
+	fmt.Println(hexutil.Encode(result.UserOperationHash))
 }
 ```
 
@@ -121,11 +121,11 @@ func main() {
 	opToSign.Signature = customSignerSignature
 
 	// Send signed user operation
-	result, err := client.SendSignedUserOperation(opToSign)
+	result, err := client.SendSignedUserOperation(opToSign, false)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(hexutil.Encode(*result.TxHash))
+	fmt.Println(hexutil.Encode(result.UserOperationHash))
 }
 ```

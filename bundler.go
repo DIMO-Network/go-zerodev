@@ -6,8 +6,10 @@ import (
 	"github.com/DIMO-Network/go-zerodev/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/friendsofgo/errors"
 	"math/big"
+	"time"
 )
 
 type GasPriceSpecification struct {
@@ -52,6 +54,34 @@ type SendUserOperationRequest struct {
 
 type SendUserOperationResponse struct {
 	TxHash *hexutil.Bytes `json:"txHash"`
+}
+
+type UserOperationReceipt struct {
+	TransactionHash   *hexutil.Bytes  `json:"transactionHash"`
+	TransactionIndex  *hexutil.Big    `json:"transactionIndex"`
+	BlockHash         *hexutil.Bytes  `json:"blockHash"`
+	BlockNumber       *hexutil.Big    `json:"blockNumber"`
+	From              common.Address  `json:"from"`
+	To                common.Address  `json:"to"`
+	CumulativeGasUsed *hexutil.Big    `json:"cumulativeGasUsed"`
+	GasUsed           *hexutil.Big    `json:"gasUsed"`
+	ContractAddress   *common.Address `json:"contractAddress"`
+	Logs              []ethtypes.Log  `json:"logs"`
+	LogsBloom         *hexutil.Bytes  `json:"logsBloom"`
+	Status            *hexutil.Uint   `json:"status"`
+	EffectiveGasPrice *hexutil.Big    `json:"effectiveGasPrice"`
+}
+type GetUserOperationReceiptResponse struct {
+	UserOpHash    *hexutil.Bytes       `json:"userOpHash"`
+	Entrypoint    common.Address       `json:"entrypoint"`
+	Sender        common.Address       `json:"sender"`
+	Nonce         *hexutil.Bytes       `json:"nonce"`
+	Paymaster     common.Address       `json:"paymaster"`
+	ActualGasUsed *hexutil.Big         `json:"actualGasUsed"`
+	ActualGasCost *hexutil.Big         `json:"actualGasCost"`
+	Success       bool                 `json:"success"`
+	Logs          []ethtypes.Log       `json:"logs"`
+	Receipt       UserOperationReceipt `json:"receipt"`
 }
 
 type BundlerClient struct {
@@ -102,4 +132,27 @@ func (b *BundlerClient) SendUserOperation(op *UserOperation) ([]byte, error) {
 
 	var response []byte = hex
 	return response, nil
+}
+
+func (b *BundlerClient) GetUserOperationReceipt(hash []byte, pollingDelaySeconds int, pollingRetries int) (*UserOperationReceipt, error) {
+	var response GetUserOperationReceiptResponse
+	ctx := context.Background()
+
+	for i := 0; i < pollingRetries; i++ {
+		err := b.Client.CallContext(ctx, &response, "eth_getUserOperationReceipt", hexutil.Encode(hash))
+		if err != nil {
+			return nil, err
+		}
+		if response.UserOpHash == nil {
+			time.Sleep(time.Duration(pollingDelaySeconds) * time.Second)
+			continue
+		}
+		break
+	}
+
+	if response.UserOpHash == nil {
+		return nil, errors.New("failed to get receipt for user operation: " + hexutil.Encode(hash))
+	}
+
+	return &response.Receipt, nil
 }
