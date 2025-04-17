@@ -92,7 +92,7 @@ func (b *BundlerClient) GetUserOperationGasPrice() (*GetUserOperationGasPriceRes
 	return &response, nil
 }
 
-func (b *BundlerClient) SendUserOperation(op *UserOperation) (*[]byte, error) {
+func (b *BundlerClient) SendUserOperation(op *UserOperation) ([]byte, error) {
 	var hex hexutil.Bytes
 
 	err := b.Client.CallContext(context.Background(), &hex, "eth_sendUserOperation", op, b.EntryPoint.GetAddress())
@@ -101,5 +101,5 @@ func (b *BundlerClient) SendUserOperation(op *UserOperation) (*[]byte, error) {
 	}
 
 	var response []byte = hex
-	return &response, nil
+	return response, nil
 }

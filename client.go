@@ -22,7 +22,7 @@ type ClientConfig struct {
 }
 
 type UserOperationResult struct {
-	TxHash *[]byte `json:"txHash"`
+	TxHash []byte `json:"txHash"`
 }
 
 type Client struct {
