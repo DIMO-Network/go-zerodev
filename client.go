@@ -12,13 +12,15 @@ import (
 )
 
 type ClientConfig struct {
-	AccountAddress    common.Address
-	AccountPK         *ecdsa.PrivateKey
-	EntryPointVersion string
-	RpcURL            *url.URL
-	PaymasterURL      *url.URL
-	BundlerURL        *url.URL
-	ChainID           *big.Int
+	AccountAddress             common.Address
+	AccountPK                  *ecdsa.PrivateKey
+	EntryPointVersion          string
+	RpcURL                     *url.URL
+	PaymasterURL               *url.URL
+	BundlerURL                 *url.URL
+	ChainID                    *big.Int
+	ReceiptPollingDelaySeconds int
+	ReceiptPollingRetries      int
 }
 
 type UserOperationResult struct {
@@ -37,6 +39,8 @@ type Client struct {
 		Paymaster *rpc.Client
 		Bundler   *rpc.Client
 	}
+	ReceiptPollingDelay   int
+	ReceiptPollingRetries int
 }
 
 func NewClient(config *ClientConfig) (*Client, error) {
@@ -94,6 +98,16 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		return nil, err
 	}
 
+	pollingDelaySeconds := 10
+	if config.ReceiptPollingDelaySeconds > 0 {
+		pollingDelaySeconds = config.ReceiptPollingDelaySeconds
+	}
+
+	pollingRetries := 24
+	if config.ReceiptPollingRetries > 0 {
+		pollingRetries = config.ReceiptPollingRetries
+	}
+
 	return &Client{
 		Signer:          signer,
 		PaymasterClient: paymasterClient,
@@ -109,6 +123,8 @@ func NewClient(config *ClientConfig) (*Client, error) {
 			Paymaster: paymasterRpc,
 			Bundler:   bundleRpc,
 		},
+		ReceiptPollingDelay:   pollingDelaySeconds,
+		ReceiptPollingRetries: pollingRetries,
 	}, nil
 }
 
@@ -174,7 +190,7 @@ func (c *Client) SendSignedUserOperation(signedOp *UserOperation, waitForReceipt
 	var receipt *UserOperationReceipt
 
 	if waitForReceipt {
-		receipt, _ = c.BundlerClient.GetUserOperationReceipt(response)
+		receipt, _ = c.BundlerClient.GetUserOperationReceipt(response, c.ReceiptPollingDelay, c.ReceiptPollingRetries)
 	}
 
 	return &UserOperationResult{
@@ -202,7 +218,7 @@ func (c *Client) SendUserOperation(callData *[]byte, waitForReceipt bool) (*User
 }
 
 func (c *Client) GetUserOperationReceipt(result *UserOperationResult) (*UserOperationReceipt, error) {
-	return c.BundlerClient.GetUserOperationReceipt(result.UserOperationHash)
+	return c.BundlerClient.GetUserOperationReceipt(result.UserOperationHash, c.ReceiptPollingDelay, c.ReceiptPollingRetries)
 }
 
 func (c *Client) GetSmartAccountSigner(address common.Address, pk *ecdsa.PrivateKey) (types.AccountSigner, error) {

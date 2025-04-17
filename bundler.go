@@ -134,17 +134,17 @@ func (b *BundlerClient) SendUserOperation(op *UserOperation) ([]byte, error) {
 	return response, nil
 }
 
-func (b *BundlerClient) GetUserOperationReceipt(hash []byte) (*UserOperationReceipt, error) {
+func (b *BundlerClient) GetUserOperationReceipt(hash []byte, pollingDelaySeconds int, pollingRetries int) (*UserOperationReceipt, error) {
 	var response GetUserOperationReceiptResponse
 	ctx := context.Background()
 
-	for i := 0; i < 24; i++ {
+	for i := 0; i < pollingRetries; i++ {
 		err := b.Client.CallContext(ctx, &response, "eth_getUserOperationReceipt", hexutil.Encode(hash))
 		if err != nil {
 			return nil, err
 		}
 		if response.UserOpHash == nil {
-			time.Sleep(10 * time.Second)
+			time.Sleep(time.Duration(pollingDelaySeconds) * time.Second)
 			continue
 		}
 		break
