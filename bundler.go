@@ -116,7 +116,7 @@ func (b *BundlerClient) GetUserOperationGasPrice() (*GetUserOperationGasPriceRes
 
 	err = b.Client.CallContext(context.Background(), &response, "zd_getUserOperationGasPrice")
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to call zd_getUserOperationGasPrice")
 	}
 
 	return &response, nil
@@ -127,7 +127,7 @@ func (b *BundlerClient) SendUserOperation(op *UserOperation) ([]byte, error) {
 
 	err := b.Client.CallContext(context.Background(), &hex, "eth_sendUserOperation", op, b.EntryPoint.GetAddress())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to call eth_sendUserOperation")
 	}
 
 	var response []byte = hex
@@ -141,7 +141,7 @@ func (b *BundlerClient) GetUserOperationReceipt(hash []byte, pollingDelaySeconds
 	for i := 0; i < pollingRetries; i++ {
 		err := b.Client.CallContext(ctx, &response, "eth_getUserOperationReceipt", hexutil.Encode(hash))
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to call eth_getUserOperationReceipt")
 		}
 		if response.UserOpHash == nil {
 			time.Sleep(time.Duration(pollingDelaySeconds) * time.Second)

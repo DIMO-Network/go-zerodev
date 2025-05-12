@@ -121,7 +121,7 @@ func (p *PaymasterClient) SponsorUserOperation(op *UserOperation) (*SponsorUserO
 
 	err := p.Client.CallContext(context.Background(), &response, "zd_sponsorUserOperation", request)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to call zd_sponsorUserOperation")
 	}
 
 	return &response, nil

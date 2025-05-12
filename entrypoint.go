@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/friendsofgo/errors"
 	"math/big"
 	"strings"
 )
@@ -41,7 +42,7 @@ type EntrypointClient07 struct {
 func NewEntrypoint07(rpcClient types.RPCClient, chainID *big.Int) (*EntrypointClient07, error) {
 	parsedAbi, err := abi.JSON(strings.NewReader(entrypointAbi07))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to parse entrypoint abi")
 	}
 
 	return &EntrypointClient07{
@@ -61,7 +62,7 @@ func (e *EntrypointClient07) GetNonce(account common.Address) (*big.Int, error) 
 	key := computeKey(account)
 	callData, err := e.Abi.Pack("getNonce", account, key)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to pack getNonce call data")
 	}
 
 	msg := struct {
@@ -74,12 +75,12 @@ func (e *EntrypointClient07) GetNonce(account common.Address) (*big.Int, error) 
 
 	var hex hexutil.Bytes
 	if err := e.Client.CallContext(context.Background(), &hex, "eth_call", msg); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to call getNonce eth_call")
 	}
 
 	decoded, err := hexutil.Decode(hex.String())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to decode getNonce hex")
 	}
 	return big.NewInt(0).SetBytes(decoded), nil
 }
@@ -88,7 +89,7 @@ func (e *EntrypointClient07) GetNonce(account common.Address) (*big.Int, error) 
 func (e *EntrypointClient07) GetUserOperationHash(op *UserOperation) (*common.Hash, error) {
 	packedOp, err := e.PackUserOperation(op)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to pack user operation")
 	}
 
 	args := abi.Arguments{
@@ -97,11 +98,15 @@ func (e *EntrypointClient07) GetUserOperationHash(op *UserOperation) (*common.Ha
 		{Type: uint256},
 	}
 
-	packed, _ := args.Pack(
+	packed, err := args.Pack(
 		crypto.Keccak256Hash(packedOp),
 		e.Address,
 		e.ChainID,
 	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to pack user operation for hashing")
+	}
 	hash := crypto.Keccak256Hash(packed)
 	return &hash, nil
 }

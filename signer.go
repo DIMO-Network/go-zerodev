@@ -2,10 +2,10 @@ package zerodev
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	signer "github.com/ethereum/go-ethereum/signer/core/apitypes"
+	"github.com/friendsofgo/errors"
 )
 
 type PrivateKeySigner struct {
@@ -38,7 +38,7 @@ func (s *PrivateKeySigner) SignMessage(message []byte) ([]byte, error) {
 func (s *PrivateKeySigner) SignTypedData(typedData *signer.TypedData) ([]byte, error) {
 	hash, _, err := signer.TypedDataAndHash(*typedData)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to hash typedData")
 	}
 
 	return s.SignHash(common.BytesToHash(hash))
@@ -48,7 +48,7 @@ func (s *PrivateKeySigner) SignHash(hash common.Hash) ([]byte, error) {
 	signature, err := crypto.Sign(hash.Bytes(), s.PrivateKey)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to sign hash")
 	}
 	signature[64] += 27
 	return signature, nil
