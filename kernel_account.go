@@ -5,6 +5,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/friendsofgo/errors"
 	"strings"
 )
 
@@ -24,7 +25,7 @@ func EncodeExecuteCall(msg *ethereum.CallMsg) (*[]byte, error) {
 
 	parsedABI, err := abi.JSON(strings.NewReader(kernelAccountExecuteABI))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to parse execute call abi")
 	}
 
 	data := bytes.Buffer{}
@@ -44,7 +45,7 @@ func EncodeExecuteCall(msg *ethereum.CallMsg) (*[]byte, error) {
 
 	callData, err := parsedABI.Pack("execute", execModeArray, data.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to encode execute call data")
 	}
 
 	return &callData, nil

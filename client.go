@@ -2,11 +2,11 @@ package zerodev
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"github.com/DIMO-Network/go-zerodev/account"
 	"github.com/DIMO-Network/go-zerodev/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/friendsofgo/errors"
 	"math/big"
 	"net/url"
 )
@@ -50,20 +50,20 @@ func NewClient(config *ClientConfig) (*Client, error) {
 
 	networkRpc, err := rpc.Dial(config.RpcURL.String())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to connect to RPC")
 	}
 
 	paymasterRpc, err := rpc.Dial(config.PaymasterURL.String())
 	if err != nil {
 		networkRpc.Close()
-		return nil, err
+		return nil, errors.Wrap(err, "failed to connect to Paymaster")
 	}
 
 	bundleRpc, err := rpc.Dial(config.BundlerURL.String())
 	if err != nil {
 		paymasterRpc.Close()
 		networkRpc.Close()
-		return nil, err
+		return nil, errors.Wrap(err, "failed to connect to Bundler")
 	}
 
 	entrypoint, err := NewEntrypoint07(networkRpc, config.ChainID)
@@ -71,7 +71,7 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		networkRpc.Close()
 		paymasterRpc.Close()
 		networkRpc.Close()
-		return nil, err
+		return nil, errors.Wrap(err, "failed to initialize entrypoint")
 	}
 
 	paymasterClient, err := NewPaymasterClient(paymasterRpc, entrypoint, config.ChainID)
@@ -79,7 +79,7 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		networkRpc.Close()
 		paymasterRpc.Close()
 		networkRpc.Close()
-		return nil, err
+		return nil, errors.Wrap(err, "failed to initialize paymasterClient")
 	}
 
 	bundlerClient, err := NewBundlerClient(bundleRpc, entrypoint, config.ChainID)
@@ -87,7 +87,7 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		networkRpc.Close()
 		paymasterRpc.Close()
 		networkRpc.Close()
-		return nil, err
+		return nil, errors.Wrap(err, "failed to initialize bundlerClient")
 	}
 
 	signer, err := account.NewSmartAccountPrivateKeySigner(networkRpc, config.AccountAddress, config.AccountPK)
@@ -95,7 +95,7 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		networkRpc.Close()
 		paymasterRpc.Close()
 		networkRpc.Close()
-		return nil, err
+		return nil, errors.Wrap(err, "failed to initialize signer")
 	}
 
 	pollingDelaySeconds := 10
