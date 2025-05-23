@@ -15,19 +15,19 @@ var (
 )
 
 type UserOperation struct {
-	Sender                        *common.Address `json:"sender"`
-	Nonce                         *big.Int        `json:"nonce"`
-	CallData                      []byte          `json:"callData"`
-	CallGasLimit                  *big.Int        `json:"callGasLimit,omitempty"`
-	VerificationGasLimit          *big.Int        `json:"verificationGasLimit,omitempty"`
-	PreVerificationGas            *big.Int        `json:"preVerificationGas,omitempty"`
-	MaxFeePerGas                  *big.Int        `json:"maxFeePerGas"`
-	MaxPriorityFeePerGas          *big.Int        `json:"maxPriorityFeePerGas"`
-	Paymaster                     []byte          `json:"paymaster,omitempty"`
-	PaymasterData                 []byte          `json:"paymasterData,omitempty"`
-	PaymasterVerificationGasLimit *big.Int        `json:"paymasterVerificationGasLimit,omitempty"`
-	PaymasterPostOpGasLimit       *big.Int        `json:"paymasterPostOpGasLimit,omitempty"`
-	Signature                     []byte          `json:"signature,omitempty"`
+	Sender                        common.Address `json:"sender"`
+	Nonce                         *big.Int       `json:"nonce"`
+	CallData                      []byte         `json:"callData"`
+	CallGasLimit                  *big.Int       `json:"callGasLimit,omitempty"`
+	VerificationGasLimit          *big.Int       `json:"verificationGasLimit,omitempty"`
+	PreVerificationGas            *big.Int       `json:"preVerificationGas,omitempty"`
+	MaxFeePerGas                  *big.Int       `json:"maxFeePerGas"`
+	MaxPriorityFeePerGas          *big.Int       `json:"maxPriorityFeePerGas"`
+	Paymaster                     []byte         `json:"paymaster,omitempty"`
+	PaymasterData                 []byte         `json:"paymasterData,omitempty"`
+	PaymasterVerificationGasLimit *big.Int       `json:"paymasterVerificationGasLimit,omitempty"`
+	PaymasterPostOpGasLimit       *big.Int       `json:"paymasterPostOpGasLimit,omitempty"`
+	Signature                     []byte         `json:"signature,omitempty"`
 }
 
 type UserOperationHex struct {
@@ -65,6 +65,78 @@ func (op *UserOperation) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&hexOp)
 }
 
+func (op *UserOperation) UnmarshalJSON(b []byte) error {
+	var hexOp UserOperationHex
+	err := json.Unmarshal(b, &hexOp)
+	if err != nil {
+		return err
+	}
+
+	op.Sender = common.HexToAddress(hexOp.Sender)
+
+	op.Nonce, err = decodeBigInt(hexOp.Nonce)
+	if err != nil {
+		return err
+	}
+
+	op.CallData, err = decodeBytes(hexOp.CallData)
+	if err != nil {
+		return err
+	}
+
+	op.MaxFeePerGas, err = decodeBigInt(hexOp.MaxFeePerGas)
+	if err != nil {
+		return err
+	}
+
+	op.MaxPriorityFeePerGas, err = decodeBigInt(hexOp.MaxPriorityFeePerGas)
+	if err != nil {
+		return err
+	}
+
+	op.CallGasLimit, err = decodeBigInt(hexOp.CallGasLimit)
+	if err != nil {
+		return err
+	}
+
+	op.VerificationGasLimit, err = decodeBigInt(hexOp.VerificationGasLimit)
+	if err != nil {
+		return err
+	}
+
+	op.PreVerificationGas, err = decodeBigInt(hexOp.PreVerificationGas)
+	if err != nil {
+		return err
+	}
+
+	op.Paymaster, err = decodeBytes(hexOp.Paymaster)
+	if err != nil {
+		return err
+	}
+
+	op.PaymasterData, err = decodeBytes(hexOp.PaymasterData)
+	if err != nil {
+		return err
+	}
+
+	op.Signature, err = decodeBytes(hexOp.Signature)
+	if err != nil {
+		return err
+	}
+
+	op.PaymasterPostOpGasLimit, err = decodeBigInt(hexOp.PaymasterPostOpGasLimit)
+	if err != nil {
+		return err
+	}
+
+	op.PaymasterVerificationGasLimit, err = decodeBigInt(hexOp.PaymasterVerificationGasLimit)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func encodeBigInt(value *big.Int) string {
 	if value != nil {
 		return hexutil.EncodeBig(value)
@@ -72,9 +144,23 @@ func encodeBigInt(value *big.Int) string {
 	return ""
 }
 
+func decodeBigInt(value string) (*big.Int, error) {
+	if value != "" {
+		return hexutil.DecodeBig(value)
+	}
+	return nil, nil
+}
+
 func encodeBytes(value []byte) string {
 	if len(value) > 0 {
 		return hexutil.Encode(value)
 	}
 	return ""
+}
+
+func decodeBytes(value string) ([]byte, error) {
+	if value != "" {
+		return hexutil.Decode(value)
+	}
+	return nil, nil
 }
