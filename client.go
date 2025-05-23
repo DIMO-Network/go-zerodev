@@ -146,7 +146,7 @@ func (c *Client) GetUserOperationAndHashToSign(sender common.Address, callData *
 		return nil, nil, err
 	}
 
-	op.Sender = &sender
+	op.Sender = sender
 	op.Nonce = nonce
 	op.CallData = *callData
 
