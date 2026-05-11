@@ -10,9 +10,8 @@
 //  2. We probe the kernel with IsFleetInstalled to confirm it really is
 //     set up the way accounts claims.
 //
-//  3. We send a couple of plain regular-mode UserOps from the fleet EOA
-//     to prove the fleet can act on the account without any further
-//     coordination.
+//  3. We send one plain regular-mode UserOp from the fleet EOA to prove
+//     the fleet can act on the account without any further coordination.
 //
 // The fleet PK does NOT need to hold any funds — the ZeroDev paymaster
 // covers gas. The same email cannot be reused: accounts rejects
@@ -133,26 +132,20 @@ func run() error {
 	}
 	fmt.Println("== installed: true (expected — accounts did the install)")
 
-	// 4) Two noop UserOps from the fleet, with different customNonceKeys
-	//    so they don't queue on the same sequence stream.
+	// 4) One noop UserOp from the fleet. That's enough to demonstrate
+	//    fleet authority on the kernel — repeating it doesn't prove
+	//    anything the first one didn't.
 	noop := &ethereum.CallMsg{
 		To:    addrPtr(common.Address{}),
 		Value: big.NewInt(0),
 		Data:  []byte{},
 	}
 
-	fmt.Println("== fleet sends noop #1...")
-	res1, err := client.SendCall(ctx, kernel, fleetPK, noop, 0x0001, true)
-	reportResult("noop #1", res1, err)
-	if err != nil && res1 == nil {
-		return fmt.Errorf("SendCall #1: %w", err)
-	}
-
-	fmt.Println("== fleet sends noop #2...")
-	res2, err := client.SendCall(ctx, kernel, fleetPK, noop, 0x0002, true)
-	reportResult("noop #2", res2, err)
-	if err != nil && res2 == nil {
-		return fmt.Errorf("SendCall #2: %w", err)
+	fmt.Println("== fleet sends noop...")
+	res, err := client.SendCall(ctx, kernel, fleetPK, noop, 0x0001, true)
+	reportResult("noop", res, err)
+	if err != nil && res == nil {
+		return fmt.Errorf("SendCall: %w", err)
 	}
 
 	fmt.Println("== done")
