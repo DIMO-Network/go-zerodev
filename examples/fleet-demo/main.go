@@ -60,9 +60,20 @@ type sharedAccountRequest struct {
 }
 
 type sharedAccountResponse struct {
-	WalletAddress   string `json:"walletAddress"`
-	EnableSignature string `json:"enableSignature"`
-	Error           any    `json:"error,omitempty"`
+	// WalletAddress is the kernel (smart-account) address. Despite the
+	// name; the API field is named for back-compat. See the rename
+	// discussion / DIMO-Network/accounts PR for context.
+	WalletAddress string `json:"walletAddress"`
+	// SudoSignerAddress is the Turnkey EOA that owns the kernel's root
+	// validator. Added in DIMO-Network/accounts#61. Optional in the
+	// decode so this binary still parses responses from an accounts
+	// service that hasn't shipped the change yet — but if it's missing
+	// and the kernel isn't already deployed, the install-carrying UserOp
+	// will fail because we can't build the right factoryData without the
+	// sudo signer.
+	SudoSignerAddress string `json:"sudoSignerAddress"`
+	EnableSignature   string `json:"enableSignature"`
+	Error             any    `json:"error,omitempty"`
 }
 
 func main() {
@@ -103,8 +114,16 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("register shared account: %w", err)
 	}
-	fmt.Printf("== accounts.dimo.org returned:\n   kernelAddress  = %s\n   enableSignature= %s\n",
-		art.KernelAddress.Hex(), hexutil.Encode(art.EnableSignature))
+	fmt.Printf("== accounts returned:\n   kernelAddress     = %s\n   sudoSignerAddress = %s\n   enableSignature   = %s\n",
+		art.KernelAddress.Hex(), art.UserSignerAddress.Hex(), hexutil.Encode(art.EnableSignature))
+	if art.UserSignerAddress == (common.Address{}) {
+		fmt.Println("   WARNING: sudoSignerAddress missing from response. This means the accounts service")
+		fmt.Println("   hasn't shipped DIMO-Network/accounts#61 yet. If the kernel is already deployed on")
+		fmt.Println("   chain (older accounts versions deployed sudo-only as part of the request) the demo")
+		fmt.Println("   still works because the factory branch is skipped. If the kernel is undeployed,")
+		fmt.Println("   SendInstallAndCall will build factoryData with a zero sudo signer and the UserOp")
+		fmt.Println("   will fail with a sender-address mismatch.")
+	}
 
 	// 2) Wire up the fleet client.
 	rpcU, err := url.Parse(*rpcURLStr)
@@ -253,17 +272,24 @@ func registerSharedAccount(baseURL, email string, fleet common.Address) (fleetAr
 		return fleetArtifactWithSig{}, fmt.Errorf("decode enableSignature: %w", err)
 	}
 
+	// sudoSignerAddress may be empty against an accounts service that
+	// hasn't shipped DIMO-Network/accounts#61. The caller (run() above)
+	// handles that case and warns the user.
+	var sudo common.Address
+	if resp.SudoSignerAddress != "" {
+		sudo = common.HexToAddress(resp.SudoSignerAddress)
+	}
+
 	return fleetArtifactWithSig{
-		KernelAddress:   common.HexToAddress(resp.WalletAddress),
-		EnableSignature: sigBytes,
-		FleetSignerAddr: fleet,
+		KernelAddress:     common.HexToAddress(resp.WalletAddress),
+		UserSignerAddress: sudo,
+		EnableSignature:   sigBytes,
+		FleetSignerAddr:   fleet,
 	}, nil
 }
 
 // fleetArtifactWithSig is a constructor-friendly shorthand around
-// fleet.EnableArtifact for this demo. The UserSignerAddress is left zero
-// because the accounts service has already deployed the kernel — we won't
-// need to build factoryData.
+// fleet.EnableArtifact for this demo.
 type fleetArtifactWithSig = fleet.EnableArtifact
 
 func addrPtr(a common.Address) *common.Address { return &a }
