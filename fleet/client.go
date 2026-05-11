@@ -135,9 +135,10 @@ func (c *Client) SendCall(
 		return nil, err
 	}
 
-	// Stub for paymaster simulation — just the standard 65-byte dummy.
-	op.Signature = common.FromHex(zerodev.SignatureDummy)
-
+	// paymaster.SponsorUserOperation overwrites op.Signature with the
+	// standard 65-byte dummy stub — exactly what the weighted-ECDSA
+	// validator's getStubSignature path expects for a single-signer
+	// regular-mode UserOp, so we don't need a custom stub here.
 	if err := c.sponsor(op); err != nil {
 		return nil, err
 	}
@@ -178,11 +179,10 @@ func (c *Client) buildBaseUserOp(
 	return op, nil
 }
 
-// sponsor calls the ZeroDev paymaster RPC with the stub signature the
-// caller has already attached, and fills the gas + paymaster fields on
-// the op from the response.
+// sponsor calls the ZeroDev paymaster RPC and fills the gas + paymaster
+// fields on the op from the response.
 func (c *Client) sponsor(op *zerodev.UserOperation) error {
-	resp, err := c.paymaster.SponsorUserOperationWithStub(op)
+	resp, err := c.paymaster.SponsorUserOperation(op)
 	if err != nil {
 		return err
 	}

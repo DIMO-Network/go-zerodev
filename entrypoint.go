@@ -159,15 +159,7 @@ func (*EntrypointClient07) PackUserOperation(op *UserOperation) ([]byte, error) 
 		{Name: "hashPaymasterAndData", Type: bytes32},
 	}
 
-	// initCode = factory || factoryData if a factory deploy is requested,
-	// otherwise empty bytes. EntryPoint v0.7 hashes whatever those bytes
-	// are, including the empty case → keccak256("").
-	var initCode []byte
-	if len(op.Factory) > 0 {
-		initCode = append(initCode, op.Factory...)
-		initCode = append(initCode, op.FactoryData...)
-	}
-	hashedInitCode := crypto.Keccak256Hash(initCode)
+	hashedInitCode := crypto.Keccak256Hash(common.FromHex("0x"))
 	hashedCallData := crypto.Keccak256Hash(op.CallData)
 
 	accountGasLimits := createPackedBuffer(

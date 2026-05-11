@@ -17,13 +17,6 @@ var (
 type UserOperation struct {
 	Sender                        common.Address `json:"sender"`
 	Nonce                         *big.Int       `json:"nonce"`
-	// Factory + FactoryData are set on the first UserOp against an
-	// undeployed account so the EntryPoint deploys it before validation.
-	// Factory must be the meta-factory address (20 bytes); FactoryData is
-	// the call data passed to that factory. Leave both nil when the
-	// account is already deployed.
-	Factory                       []byte         `json:"factory,omitempty"`
-	FactoryData                   []byte         `json:"factoryData,omitempty"`
 	CallData                      []byte         `json:"callData"`
 	CallGasLimit                  *big.Int       `json:"callGasLimit,omitempty"`
 	VerificationGasLimit          *big.Int       `json:"verificationGasLimit,omitempty"`
@@ -40,8 +33,6 @@ type UserOperation struct {
 type UserOperationHex struct {
 	Sender                        string `json:"sender"`
 	Nonce                         string `json:"nonce"`
-	Factory                       string `json:"factory,omitempty"`
-	FactoryData                   string `json:"factoryData,omitempty"`
 	CallData                      string `json:"callData"`
 	CallGasLimit                  string `json:"callGasLimit,omitempty"`
 	VerificationGasLimit          string `json:"verificationGasLimit,omitempty"`
@@ -59,8 +50,6 @@ func (op *UserOperation) MarshalJSON() ([]byte, error) {
 	hexOp := UserOperationHex{
 		Sender:                        op.Sender.String(),
 		Nonce:                         encodeBigInt(op.Nonce),
-		Factory:                       encodeBytes(op.Factory),
-		FactoryData:                   encodeBytes(op.FactoryData),
 		CallData:                      encodeBytes(op.CallData),
 		MaxFeePerGas:                  encodeBigInt(op.MaxFeePerGas),
 		MaxPriorityFeePerGas:          encodeBigInt(op.MaxPriorityFeePerGas),
@@ -86,16 +75,6 @@ func (op *UserOperation) UnmarshalJSON(b []byte) error {
 	op.Sender = common.HexToAddress(hexOp.Sender)
 
 	op.Nonce, err = decodeBigInt(hexOp.Nonce)
-	if err != nil {
-		return err
-	}
-
-	op.Factory, err = decodeBytes(hexOp.Factory)
-	if err != nil {
-		return err
-	}
-
-	op.FactoryData, err = decodeBytes(hexOp.FactoryData)
 	if err != nil {
 		return err
 	}

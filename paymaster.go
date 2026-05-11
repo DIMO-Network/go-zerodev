@@ -108,27 +108,7 @@ func (p *PaymasterClient) GetChainID() *big.Int {
 
 func (p *PaymasterClient) SponsorUserOperation(op *UserOperation) (*SponsorUserOperationResponse, error) {
 	op.Signature = common.FromHex(SignatureDummy)
-	return p.sponsor(op)
-}
 
-// SponsorUserOperationWithStub is for callers (e.g. the fleet enable-mode
-// flow) that need to supply their own stub signature for the paymaster's
-// simulation — the default-mode 65-byte dummy won't decode as a valid
-// enable-mode signature envelope and the kernel reverts during simulation
-// if it doesn't.
-//
-// The caller is responsible for setting op.Signature to something that
-// (1) the validator's getStubSignature path accepts during simulation and
-// (2) has the same byte length as the eventual real signature, so that
-// gas estimation stays accurate.
-func (p *PaymasterClient) SponsorUserOperationWithStub(op *UserOperation) (*SponsorUserOperationResponse, error) {
-	if len(op.Signature) == 0 {
-		return nil, errors.New("SponsorUserOperationWithStub: caller must set op.Signature to a stub")
-	}
-	return p.sponsor(op)
-}
-
-func (p *PaymasterClient) sponsor(op *UserOperation) (*SponsorUserOperationResponse, error) {
 	var request = SponsorUserOperationRequest{
 		ChainID:           p.ChainID,
 		EntryPointAddress: p.EntryPoint.GetAddress(),
