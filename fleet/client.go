@@ -13,17 +13,6 @@ import (
 	"github.com/friendsofgo/errors"
 )
 
-// EnableArtifact is what the admin (e.g. DIMO accounts service) hands to
-// the fleet. Pure data — no RPC interaction needed to produce it on the
-// admin side beyond a single Turnkey typed-data signing call.
-type EnableArtifact struct {
-	KernelAddress     common.Address
-	UserSignerAddress common.Address // EOA address of the kernel's sudo signer
-	EnableSignature   []byte         // 65 bytes; user's Turnkey sig over the Enable typed-data hash
-	FleetSignerAddr   common.Address // EOA address embedded in the enable signature (the validator's lone signer)
-	KernelIndex       *big.Int       // CREATE2 salt; nil → 0
-}
-
 // ClientConfig wires the RPC + chain bits the fleet client needs.
 type ClientConfig struct {
 	RpcURL       *url.URL
@@ -35,9 +24,9 @@ type ClientConfig struct {
 	ReceiptPollingRetries      int
 }
 
-// Client sends fleet-side UserOps against a Kernel V3.1 with the
-// weighted-ECDSA validator installed (or, on its first call against a
-// given kernel, installs it via enable mode).
+// Client sends regular-mode UserOps against a Kernel V3.1 shared account
+// that has the weighted-ECDSA secondary validator already installed (with
+// the caller's fleet EOA among the guardians).
 type Client struct {
 	chainID *big.Int
 
@@ -124,9 +113,10 @@ func (c *Client) IsFleetInstalled(ctx context.Context, kernel common.Address) (b
 	return IsFleetInstalled(ctx, c.rpc, kernel)
 }
 
-// SendCall sends a plain default-mode UserOp. Use when IsFleetInstalled
-// has returned true — the weighted-ECDSA validator has already been
-// installed and granted permission for executeUserOp.
+// SendCall sends a plain regular-mode UserOp through the bundler. The
+// kernel must already have the weighted-ECDSA secondary validator
+// installed and granted permission for executeUserOp (which is what the
+// admin's POST /api/shared/account/email leaves behind).
 func (c *Client) SendCall(
 	ctx context.Context,
 	kernel common.Address,
@@ -140,105 +130,18 @@ func (c *Client) SendCall(
 		return nil, err
 	}
 
-	op, err := c.buildBaseUserOp(kernel, *callData, ValidatorModeDefault, customNonceKey)
+	op, err := c.buildBaseUserOp(kernel, *callData, customNonceKey)
 	if err != nil {
 		return nil, err
 	}
 
-	// Default-mode stub signature is just the 65-byte dummy.
+	// Stub for paymaster simulation — just the standard 65-byte dummy.
 	op.Signature = common.FromHex(zerodev.SignatureDummy)
 
 	if err := c.sponsor(op); err != nil {
 		return nil, err
 	}
-
-	if err := c.signAndAttach(op, fleetPK, nil); err != nil {
-		return nil, err
-	}
-
-	return c.submit(op, waitForReceipt)
-}
-
-// SendInstallAndCall sends an enable-mode UserOp that installs the
-// weighted-ECDSA validator (with selector permission) and then executes
-// msg, all under one sudo-signed authorization (the artifact). If the
-// kernel is not yet deployed this UserOp also runs the factory.
-func (c *Client) SendInstallAndCall(
-	ctx context.Context,
-	art EnableArtifact,
-	fleetPK *ecdsa.PrivateKey,
-	msg *ethereum.CallMsg,
-	customNonceKey uint16,
-	waitForReceipt bool,
-) (*zerodev.UserOperationResult, error) {
-	if len(art.EnableSignature) == 0 {
-		return nil, errors.New("fleet: empty enable signature on artifact")
-	}
-
-	cfg := WeightedEcdsaConfig{
-		Signers:   []common.Address{art.FleetSignerAddr},
-		Weights:   []uint32{100},
-		Threshold: 100,
-	}
-	validatorData, err := cfg.EncodeInstallData()
-	if err != nil {
-		return nil, errors.Wrap(err, "fleet: install data")
-	}
-	sel, err := SelectorData(DefaultAction())
-	if err != nil {
-		return nil, errors.Wrap(err, "fleet: selector data")
-	}
-
-	callData, err := zerodev.EncodeExecuteCall(msg)
-	if err != nil {
-		return nil, err
-	}
-
-	op, err := c.buildBaseUserOp(art.KernelAddress, *callData, ValidatorModeEnable, customNonceKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// If kernel isn't deployed yet, attach factory bits so the EntryPoint
-	// deploys it in the same UserOp.
-	code, err := getCode(ctx, c.rpc, art.KernelAddress)
-	if err != nil {
-		return nil, errors.Wrap(err, "fleet: eth_getCode")
-	}
-	if len(code) == 0 {
-		fd, err := FactoryData(art.UserSignerAddress, art.KernelIndex)
-		if err != nil {
-			return nil, errors.Wrap(err, "fleet: factory data")
-		}
-		op.Factory = MetaFactoryAddress.Bytes()
-		op.FactoryData = fd
-	}
-
-	// Build a stub envelope so the paymaster simulation can decode it.
-	// The inner userOpSig is the standard ZeroDev dummy.
-	stubEnv := EnableEnvelope{
-		ValidatorData: validatorData,
-		HookData:      []byte{},
-		SelectorData:  sel,
-		EnableSig:     art.EnableSignature,
-		UserOpSig:     common.FromHex(zerodev.SignatureDummy),
-	}
-	stubBytes, err := stubEnv.Encode()
-	if err != nil {
-		return nil, err
-	}
-	op.Signature = stubBytes
-
-	if err := c.sponsor(op); err != nil {
-		return nil, err
-	}
-
-	if err := c.signAndAttach(op, fleetPK, &EnableEnvelope{
-		ValidatorData: validatorData,
-		HookData:      []byte{},
-		SelectorData:  sel,
-		EnableSig:     art.EnableSignature,
-	}); err != nil {
+	if err := c.signAndAttach(op, fleetPK); err != nil {
 		return nil, err
 	}
 
@@ -251,7 +154,6 @@ func (c *Client) SendInstallAndCall(
 func (c *Client) buildBaseUserOp(
 	kernel common.Address,
 	callData []byte,
-	mode byte,
 	customKey uint16,
 ) (*zerodev.UserOperation, error) {
 	op := &zerodev.UserOperation{
@@ -259,9 +161,8 @@ func (c *Client) buildBaseUserOp(
 		CallData: callData,
 	}
 
-	// Nonce key + on-chain sequence.
-	key := NonceKey(mode, ValidatorTypeSecondary, WeightedEcdsaAddress, customKey)
-	seq, err := c.entryNonceForKey(kernel, key)
+	key := NonceKeyDefaultModeForWeightedEcdsa(customKey)
+	seq, err := c.entry.GetNonceWithKey(kernel, NonceKeyAsUint192(key))
 	if err != nil {
 		return nil, err
 	}
@@ -277,16 +178,9 @@ func (c *Client) buildBaseUserOp(
 	return op, nil
 }
 
-// entryNonceForKey wraps EntryPoint.getNonce(account, key) with our
-// 24-byte key encoding. The existing zerodev.Entrypoint07.GetNonce uses a
-// different (sudo-friendly) key encoding, so we call the custom-key form.
-func (c *Client) entryNonceForKey(account common.Address, key [24]byte) (uint64, error) {
-	return c.entry.GetNonceWithKey(account, NonceKeyAsUint192(key))
-}
-
 // sponsor calls the ZeroDev paymaster RPC with the stub signature the
-// caller has already attached to op.Signature, and fills the gas +
-// paymaster fields on the op from the response.
+// caller has already attached, and fills the gas + paymaster fields on
+// the op from the response.
 func (c *Client) sponsor(op *zerodev.UserOperation) error {
 	resp, err := c.paymaster.SponsorUserOperationWithStub(op)
 	if err != nil {
@@ -303,11 +197,9 @@ func (c *Client) sponsor(op *zerodev.UserOperation) error {
 }
 
 // signAndAttach computes the userOpHash, signs it with the fleet's PK via
-// the EIP-191 personal-message wrapper the weighted-ECDSA validator
-// expects, and assembles the final signature. envOrNil controls mode: nil
-// means default mode (raw 65-byte sig); non-nil means enable mode (envelope
-// wrapping the userOpSig).
-func (c *Client) signAndAttach(op *zerodev.UserOperation, pk *ecdsa.PrivateKey, envOrNil *EnableEnvelope) error {
+// EIP-191 personal-sign (what weighted-ECDSA expects from a single
+// guardian), and writes the 65-byte signature into op.Signature.
+func (c *Client) signAndAttach(op *zerodev.UserOperation, pk *ecdsa.PrivateKey) error {
 	hash, err := c.entry.GetUserOperationHash(op)
 	if err != nil {
 		return err
@@ -316,34 +208,18 @@ func (c *Client) signAndAttach(op *zerodev.UserOperation, pk *ecdsa.PrivateKey, 
 	if err != nil {
 		return err
 	}
-	if envOrNil == nil {
-		op.Signature = sig
-		return nil
-	}
-	envOrNil.UserOpSig = sig
-	final, err := envOrNil.Encode()
-	if err != nil {
-		return err
-	}
-	op.Signature = final
+	op.Signature = sig
 	return nil
 }
 
 // submit sends a built+signed UserOp through the bundler and, when
-// waitForReceipt is true, polls for the receipt. The contract here:
+// waitForReceipt is true, polls for the receipt. Contract:
 //
-//   - If the bundler rejects the UserOp, returns (nil, error). The UserOp
-//     didn't land.
-//   - If the bundler accepts it but receipt polling fails (timeout, RPC
-//     error, malformed response), returns a non-nil result with the
-//     userOpHash populated AND a non-nil error. The caller has enough to
-//     investigate manually (look up the hash on the explorer) but knows
-//     the wait part didn't complete.
-//   - On full success, returns (result, nil) with receipt populated.
-//
-// The previous version swallowed the receipt-polling error, which made
-// "I sent a UserOp but the receipt never came back" indistinguishable from
-// "everything worked" — exactly the wrong tradeoff.
+//   - bundler rejects: returns (nil, error). UserOp didn't land.
+//   - bundler accepts, receipt poll fails: returns (result with
+//     userOpHash, error). Landed but wait didn't complete; look up the
+//     hash on an explorer.
+//   - full success: returns (result with receipt, nil).
 func (c *Client) submit(op *zerodev.UserOperation, waitForReceipt bool) (*zerodev.UserOperationResult, error) {
 	hash, err := c.bundler.SendUserOperation(op)
 	if err != nil {
