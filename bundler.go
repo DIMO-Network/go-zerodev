@@ -75,7 +75,11 @@ type GetUserOperationReceiptResponse struct {
 	UserOpHash    *hexutil.Bytes       `json:"userOpHash"`
 	Entrypoint    common.Address       `json:"entrypoint"`
 	Sender        common.Address       `json:"sender"`
-	Nonce         *hexutil.Bytes       `json:"nonce"`
+	// Nonce is the EntryPoint's uint256 nonce as the bundler returns it
+	// — leading-zero-stripped hex. Decoding into hexutil.Bytes blows up
+	// whenever the top nibble is zero (odd-length string), so use
+	// hexutil.Big which expects the integer encoding.
+	Nonce         *hexutil.Big         `json:"nonce"`
 	Paymaster     common.Address       `json:"paymaster"`
 	ActualGasUsed *hexutil.Big         `json:"actualGasUsed"`
 	ActualGasCost *hexutil.Big         `json:"actualGasCost"`

@@ -27,6 +27,10 @@ const (
 type Entrypoint interface {
 	GetAddress() common.Address
 	GetNonce(account common.Address) (*big.Int, error)
+	// GetNonceWithKey returns the 64-bit sequence the EntryPoint will
+	// require for the next UserOp under the given 192-bit nonce key. The
+	// key is interpreted as the upper 192 bits of the full 256-bit nonce.
+	GetNonceWithKey(account common.Address, key *big.Int) (uint64, error)
 	GetUserOperationHash(op *UserOperation) (*common.Hash, error)
 	PackUserOperation(op *UserOperation) ([]byte, error)
 }
@@ -83,6 +87,37 @@ func (e *EntrypointClient07) GetNonce(account common.Address) (*big.Int, error) 
 		return nil, errors.Wrap(err, "failed to decode getNonce hex")
 	}
 	return big.NewInt(0).SetBytes(decoded), nil
+}
+
+// GetNonceWithKey calls EntryPoint.getNonce(account, key) and returns the
+// 64-bit sequence the contract reports — the caller composes the full
+// 256-bit nonce by shifting the 192-bit key left and OR-ing the sequence
+// into the low bits. This is what callers using a non-default validator
+// routing (e.g. a secondary validator) need.
+func (e *EntrypointClient07) GetNonceWithKey(account common.Address, key *big.Int) (uint64, error) {
+	callData, err := e.Abi.Pack("getNonce", account, key)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to pack getNonce call data")
+	}
+
+	msg := struct {
+		To   common.Address `json:"to"`
+		Data hexutil.Bytes  `json:"data"`
+	}{To: e.Address, Data: callData}
+
+	var hex hexutil.Bytes
+	if err := e.Client.CallContext(context.Background(), &hex, "eth_call", msg); err != nil {
+		return 0, errors.Wrap(err, "failed to call getNonce eth_call")
+	}
+
+	decoded, err := hexutil.Decode(hex.String())
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to decode getNonce hex")
+	}
+	full := big.NewInt(0).SetBytes(decoded)
+	// Low 64 bits = sequence number.
+	mask := new(big.Int).SetUint64(^uint64(0))
+	return new(big.Int).And(full, mask).Uint64(), nil
 }
 
 // GetUserOperationHash calculates the hash of a UserOperation.
