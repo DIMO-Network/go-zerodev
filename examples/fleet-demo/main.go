@@ -219,7 +219,7 @@ func run() error {
 	}
 
 	fmt.Println("== fleet sends mintVehicleWithDeviceDefinition...")
-	mintRes, err := client.SendCall(ctx, kernel, fleetPK, mintMsg, 0x0001, true)
+	mintRes, err := client.SendCall(ctx, kernel, fleetPK, mintMsg, true)
 	reportResult("mint", mintRes, err)
 	if err != nil {
 		return fmt.Errorf("mint SendCall: %w", err)
@@ -243,7 +243,7 @@ func run() error {
 	}
 
 	fmt.Println("== fleet sends safeTransferFrom...")
-	transferRes, err := client.SendCall(ctx, kernel, fleetPK, transferMsg, 0x0001, true)
+	transferRes, err := client.SendCall(ctx, kernel, fleetPK, transferMsg, true)
 	reportResult("transfer", transferRes, err)
 	if err != nil {
 		return fmt.Errorf("transfer SendCall: %w", err)

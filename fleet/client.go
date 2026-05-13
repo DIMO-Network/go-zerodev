@@ -117,12 +117,16 @@ func (c *Client) IsFleetInstalled(ctx context.Context, kernel common.Address) (b
 // kernel must already have the weighted-ECDSA secondary validator
 // installed and granted permission for executeUserOp (which is what the
 // admin's POST /api/shared/account/email leaves behind).
+//
+// The UserOp uses the default nonce lane (customNonceKey = 0) for the
+// fleet's weighted-ECDSA validator. That lane is independent of the
+// sudo validator's lane, so fleet and admin ops can run in parallel.
+// Multiple fleet UserOps on the same kernel serialize within this lane.
 func (c *Client) SendCall(
 	ctx context.Context,
 	kernel common.Address,
 	fleetPK *ecdsa.PrivateKey,
 	msg *ethereum.CallMsg,
-	customNonceKey uint16,
 	waitForReceipt bool,
 ) (*zerodev.UserOperationResult, error) {
 	callData, err := zerodev.EncodeExecuteCall(msg)
@@ -130,7 +134,7 @@ func (c *Client) SendCall(
 		return nil, err
 	}
 
-	op, err := c.buildBaseUserOp(kernel, *callData, customNonceKey)
+	op, err := c.buildBaseUserOp(kernel, *callData)
 	if err != nil {
 		return nil, err
 	}
@@ -155,14 +159,13 @@ func (c *Client) SendCall(
 func (c *Client) buildBaseUserOp(
 	kernel common.Address,
 	callData []byte,
-	customKey uint16,
 ) (*zerodev.UserOperation, error) {
 	op := &zerodev.UserOperation{
 		Sender:   kernel,
 		CallData: callData,
 	}
 
-	key := NonceKeyDefaultModeForWeightedEcdsa(customKey)
+	key := NonceKeyDefaultModeForWeightedEcdsa(0)
 	seq, err := c.entry.GetNonceWithKey(kernel, NonceKeyAsUint192(key))
 	if err != nil {
 		return nil, err
